@@ -1,0 +1,84 @@
+"""
+❓ КОМАНДА /команды
+"""
+
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+COMMANDS_DATA = {
+    "🎫 Тикеты": [
+        ("/setup-tickets",              "Установить панель тикетов",              True),
+        ("/ticket add/remove/rename",   "Управление тикетами",                    False),
+    ],
+    "📋 Заявки": [
+        ("/setup-applications",         "Установить панель заявок",               True),
+    ],
+    "🔨 Модерация": [
+        ("/ds-panel",                   "Панель Mute/Ban/Kick для игрока",         False),
+        ("/purge",                      "Удалить сообщения (bulk delete)",         False),
+        ("/unban",                      "Разбанить по ID",                         False),
+        ("/кд-сброс",                   "Сбросить кулдаун тикета/заявки",          True),
+    ],
+    "🤖 Авто-ответ": [
+        ("/авто-ответ установить",      "Установить авто-ответ (до 5 вариантов)", False),
+        ("/авто-ответ выкл",            "Отключить авто-ответ",                   False),
+        ("/авто-ответ список",          "Список активных авто-ответов",           False),
+    ],
+    "💳 Донат": [
+        ("/donate",                     "Магазин доната (публично)",              False),
+        ("/donate-admin ...",           "Управление товарами и оплатой",          True),
+    ],
+    "ℹ️ Информация": [
+        ("/info",                       "Получить информацию о сервере в ЛС",     False),
+        ("/info-настройка ...",         "Настроить текст и ссылки",               True),
+    ],
+    "👋 Приветствия": [
+        ("/добро-пожаловать канал",     "Установить канал приветствий",           True),
+        ("/добро-пожаловать текст",     "Изменить текст приветствия",             True),
+        ("/добро-пожаловать тест",      "Тестовое приветствие",                   True),
+    ],
+    "🧠 ИИ-чат": [
+        ("/ии-настройка провайдер",     "Выбрать провайдер ИИ + ключ",           True),
+        ("/ии-настройка канал/лимит",   "Канал и лимиты",                         True),
+        ("/ии-сброс",                   "Сбросить историю",                       True),
+        ("/ии-стат",                    "Статистика использования",               True),
+    ],
+    "🔐 Доступ": [
+        ("/доступ добавить",            "Выдать доступ к команде",                True),
+        ("/доступ убрать/очистить",     "Убрать/сбросить доступ",                 True),
+        ("/доступ список",              "Кто имеет доступ",                        True),
+    ],
+    "🛠️ Утилиты": [
+        ("/say",                        "Написать от имени бота",                  False),
+        ("/say-dm",                     "Написать в ЛС от имени бота",             False),
+        ("/ip",                         "Информация по аккаунту + IP из БД",       False),
+        ("/ip-сет",                     "Сохранить IP/заметку для игрока",         True),
+    ],
+}
+
+
+class HelpCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="команды", description="❓ Список всех команд бота")
+    async def help_cmd(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="📖 Список команд",
+            description="🔒 = скрыто от обычных пользователей (нужны права)\nДоступ настраивается через `/доступ добавить`",
+            color=0x5865f2,
+            timestamp=discord.utils.utcnow(),
+        )
+        for category, cmds in COMMANDS_DATA.items():
+            lines = []
+            for name, desc, admin_only in cmds:
+                lock = " 🔒" if admin_only else ""
+                lines.append(f"`{name}`{lock} — {desc}")
+            embed.add_field(name=category, value="\n".join(lines), inline=False)
+        embed.set_footer(text=f"{interaction.guild.name} • /команды")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def setup(bot):
+    await bot.add_cog(HelpCog(bot))
