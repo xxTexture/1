@@ -1,12 +1,66 @@
 # =============================================================================
-# ✏️  ВЕСЬ ТЕКСТ БОТА — РЕДАКТИРУЙ ЗДЕСЬ
-# Здесь собраны ВСЕ пользовательские строки бота.
-# После изменений — перезапусти бота.
+# ✏️  ВЕСЬ ТЕКСТ БОТА — ЕДИНЫЙ ФАЙЛ
+#
+# Как это работает:
+#   • Ниже в классе TextDefaults лежат ВСЕ тексты бота по умолчанию.
+#   • Любой текст можно изменить прямо из Discord: /тексты изменить КЛЮЧ
+#     (переопределения хранятся в data.json → раздел "text_overrides").
+#   • Сбросить: /тексты сброс [ключ]   |   Посмотреть все: /тексты список
+#   • В коде везде используется объект T — он сам подставляет переопределение,
+#     если оно есть, иначе значение по умолчанию.
+#
+# Плейсхолдеры в фигурных скобках ({user}, {channel}...) НЕ УДАЛЯЙ —
+# бот подставляет туда свои значения.
 # =============================================================================
 
-class T:
+from database import db
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ограничения длины для «коротких» текстов (лимиты самого Discord).
+# /тексты изменить не даст поставить значение длиннее — иначе панель сломается.
+# ─────────────────────────────────────────────────────────────────────────────
+TEXT_LIMITS = {
+    # Кнопки (лимит Discord — 80 символов)
+    "TICKET_BTN_LABEL": 80, "TICKET_CLOSE_BTN": 80,
+    "APP_ACCEPT_BTN": 80, "APP_REJECT_BTN": 80,
+    # Плейсхолдеры выпадающих списков (лимит — 100)
+    "TICKET_SELECT_PH": 100, "APP_SELECT_PH": 100,
+    # Пункты выпадающих списков (label/description — по 100)
+    "TICKET_TYPE_SUPPORT": 100, "TICKET_TYPE_SUPPORT_DESC": 100,
+    "TICKET_TYPE_TECH": 100,    "TICKET_TYPE_TECH_DESC": 100,
+    "APP_TYPE_STAFF": 100, "APP_TYPE_STAFF_DESC": 100,
+    "APP_TYPE_DS": 100,    "APP_TYPE_DS_DESC": 100,
+    "APP_TYPE_BUILDER": 100, "APP_TYPE_BUILDER_DESC": 100,
+    # Заголовки модальных окон (лимит — 45)
+    "TICKET_MODAL_TITLE": 45, "TICKET_CLOSE_MODAL_TITLE": 45,
+    "APP_MODAL_TITLE": 45,    "APP_REJECT_MODAL_TITLE": 45,
+    # Подписи полей ввода (лимит — 45) и плейсхолдеры полей (лимит — 100)
+    "TICKET_REASON_LABEL": 45,       "TICKET_REASON_PH": 100,
+    "TICKET_CLOSE_REASON_LABEL": 45, "TICKET_CLOSE_REASON_PH": 100,
+    "APP_Q1_LABEL": 45, "APP_Q1_PH": 100, "APP_Q2_LABEL": 45,
+    "APP_REJECT_REASON_LABEL": 45, "APP_REJECT_REASON_PH": 100,
+    # Эмодзи кнопок
+    "TICKET_BTN_EMOJI": 64,
+}
+
+# Короткие префиксы ключей → категория (для /тексты список)
+_CATEGORY_PREFIXES = [
+    ("TICKET_", "🎫 Тикеты"),
+    ("APP_",    "📋 Заявки"),
+    ("MOD_",    "🔨 Модерация"),
+    ("AR_",     "🤖 Авто-ответ"),
+    ("DONATE_", "💳 Донат"),
+    ("INFO_",   "ℹ️ Информация"),
+    ("AI_",     "🧠 ИИ-чат"),
+    ("WELCOME_","👋 Приветствия"),
+    ("ACCESS_", "🔐 Доступ"),
+    ("STAFF_",  "📊 Статистика персонала"),
+]
+
+
+class TextDefaults:
     # ─────────────────────────────────────────────────────────────────────────
-    # 🎫 ТИКЕТЫ — панель и сообщения
+    # 🎫 ТИКЕТЫ — панель, форма, закрытие
     # ─────────────────────────────────────────────────────────────────────────
     TICKET_PANEL_TITLE = "🛠️ ПОДДЕРЖКА СЕРВЕРА"
     TICKET_PANEL_DESC  = (
@@ -20,15 +74,18 @@ class T:
     )
     TICKET_BTN_LABEL   = "Создать тикет"
     TICKET_BTN_EMOJI   = "📩"
+    TICKET_TYPE_SELECT_PROMPT = "Выберите тип обращения:"
     TICKET_SELECT_PH   = "Выберите тип обращения..."
     TICKET_TYPE_SUPPORT      = "💬 Поддержка"
     TICKET_TYPE_SUPPORT_DESC = "Общие вопросы, жалобы, баги"
     TICKET_TYPE_TECH         = "⚙️ Тех-поддержка"
     TICKET_TYPE_TECH_DESC    = "Технические проблемы с сервером"
-    TICKET_INNER_TITLE = "📞 ОЖИДАЙТЕ ОТВЕТА"
-    TICKET_INNER_DESC  = "Тип: **{type}**\nАдминистрация скоро подключится."
+    TICKET_MODAL_TITLE  = "Создание обращения"
     TICKET_REASON_LABEL = "Кратко опишите вашу проблему:"
     TICKET_REASON_PH    = "Опишите ситуацию подробно..."
+    TICKET_INNER_TITLE  = "📞 ОЖИДАЙТЕ ОТВЕТА"
+    TICKET_INNER_DESC   = "Тип: **{type}**\nАдминистрация скоро подключится."
+    TICKET_CREATED_FOOTER = "Создал: {name}"
     TICKET_CLOSE_BTN    = "Закрыть тикет"
     TICKET_CLOSE_MODAL_TITLE  = "Закрытие тикета"
     TICKET_CLOSE_REASON_LABEL = "Укажите причину закрытия:"
@@ -39,11 +96,22 @@ class T:
     TICKET_CLOSED_DM_REASON   = "Причина:"
     TICKET_CLOSED_DM_FOOTER   = "Закрыл: {mod}"
     TICKET_LOG_TITLE          = "🔒 Тикет закрыт"
+    TICKET_LOG_F_CHANNEL      = "Канал"
+    TICKET_LOG_F_OPENER       = "Открыл"
+    TICKET_LOG_F_CLOSER       = "Закрыл"
+    TICKET_LOG_F_REASON       = "Причина"
     TICKET_CD_MSG             = "⏳ Подожди **{m}м {s}с** перед созданием нового тикета."
     TICKET_CREATED_MSG        = "✅ Тикет создан: {channel}"
+    TICKET_PANEL_OK           = "✅ Панель тикетов установлена. Она обновляется автоматически при изменении настроек."
+    TICKET_ONLY_IN_TICKET     = "❌ Эта команда работает только в каналах тикетов."
+    TICKET_ADD_OK             = "✅ {user} добавлен(а) в тикет."
+    TICKET_REMOVE_OK          = "✅ {user} удалён(а) из тикета."
+    TICKET_RENAME_OK          = "✅ Канал переименован в `{name}`."
+    TICKET_NO_TYPES           = "❌ Типы тикетов не настроены. Администратор может добавить их через `/тикет-настройка добавить`."
+    TICKET_CREATE_ERROR       = "❌ Не удалось создать канал тикета. Проверьте права бота (Manage Channels)."
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 📋 ЗАЯВКИ — панель и сообщения
+    # 📋 ЗАЯВКИ — панель, анкета, решение
     # ─────────────────────────────────────────────────────────────────────────
     APP_PANEL_TITLE = "📋 ПОДАЧА ЗАЯВКИ В КОМАНДУ"
     APP_PANEL_DESC  = (
@@ -57,10 +125,11 @@ class T:
     APP_SELECT_PH = "Выберите направление..."
     APP_TYPE_STAFF   = "🛡️ Персонал"
     APP_TYPE_DS      = "⚙️ ДС-Адм"
-    APP_TYPE_BUILDER = "🔨 Билдеры"
+    APP_TYPE_Builder = "🔨 Билдеры"
     APP_TYPE_STAFF_DESC   = "Модерация и помощь игрокам"
     APP_TYPE_DS_DESC      = "Управление Discord-сервером"
     APP_TYPE_BUILDER_DESC = "Строительство карт и спавнов"
+    APP_MODAL_TITLE = "Заявка: {type}"
     APP_Q1_LABEL = "Ваш ник и возраст:"
     APP_Q1_PH    = "Иван, 18 лет"
     APP_Q2_LABEL = "Опыт и почему мы должны взять вас?"
@@ -75,6 +144,9 @@ class T:
     APP_NO_CHANNEL = "❌ Канал для этого типа заявок не настроен. Сообщите администратору."
     APP_ACCEPT_BTN = "Принять"
     APP_REJECT_BTN = "Отклонить"
+    APP_ACCEPT_OK  = "✅ Заявка принята, игрок уведомлён."
+    APP_REJECT_OK  = "❌ Заявка отклонена, игрок уведомлён."
+    APP_PANEL_OK   = "✅ Панель заявок установлена. Она обновляется автоматически при изменении настроек."
     APP_ACCEPTED_DM_TITLE = "🎉 Ваша заявка принята!"
     APP_ACCEPTED_DM_DESC  = "Поздравляем! Ваша заявка на сервере **{guild}** принята.\nВ скором времени с вами свяжется администрация."
     APP_REJECTED_DM_TITLE = "❌ Ваша заявка отклонена"
@@ -86,6 +158,9 @@ class T:
     APP_ACCEPTED_STATUS     = "**ПРИНЯТО** модератором {mod}"
     APP_REJECTED_STATUS     = "**ОТКЛОНЕНО** модератором {mod}"
     APP_REJECTED_REASON_FIELD = "Причина отказа:"
+    APP_STATUS_FIELD_OK     = "✅ Статус"
+    APP_STATUS_FIELD_NO     = "❌ Статус"
+    APP_DM_REASON_FIELD     = "Причина:"
 
     # ─────────────────────────────────────────────────────────────────────────
     # 🔨 МОДЕРАЦИЯ
@@ -162,7 +237,7 @@ class T:
         "Прочитай правила и удачной игры! 🎮"
     )
     WELCOME_EMBED_TITLE = "🎉 Новый участник!"
-    WELCOME_EMBED_COLOR = 0x2ecc71
+    WELCOME_EMBED_COLOR = 0x2ecc71   # цвет (число) — редактируется только в config/texts.py
 
     # ─────────────────────────────────────────────────────────────────────────
     # 🔐 ДОСТУП
@@ -185,3 +260,83 @@ class T:
     STAFF_CAT_DISCORD       = "⚙️ Персонал дискорда"
     STAFF_CAT_BUILDER       = "🔨 Билдеры"
     STAFF_CAT_ALL           = "🌐 Весь персонал"
+
+
+# =============================================================================
+# ⚙️  СИСТЕМНАЯ ЧАСТЬ — ниже менять ничего не нужно
+# =============================================================================
+
+class _TextsProxy:
+    """
+    Объект T: при обращении к атрибуту сначала ищет переопределение из
+    data.json (text_overrides.КЛЮЧ), иначе возвращает значение по умолчанию.
+    """
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if not hasattr(TextDefaults, name):
+            raise AttributeError(f"Текст '{name}' не найден в texts.py")
+        default = getattr(TextDefaults, name)
+        if not isinstance(default, str):
+            return default  # числа (цвета) не переопределяются через /тексты
+        override = db.get_sync(f"text_overrides.{name}")
+        if isinstance(override, str) and override != "":
+            return override
+        return default
+
+
+T = _TextsProxy()
+
+
+def all_text_keys() -> list[str]:
+    """Все редактируемые (строковые) ключи текстов."""
+    return [
+        k for k, v in vars(TextDefaults).items()
+        if not k.startswith("_") and isinstance(v, str)
+    ]
+
+
+def get_default(key: str):
+    """Значение текста по умолчанию."""
+    return getattr(TextDefaults, key, None)
+
+
+def is_overridden(key: str) -> bool:
+    ov = db.get_sync(f"text_overrides.{key}")
+    return isinstance(ov, str) and ov != ""
+
+
+def category_for_key(key: str) -> str:
+    for prefix, cat in _CATEGORY_PREFIXES:
+        if key.startswith(prefix):
+            return cat
+    return "📦 Прочее"
+
+
+def categories() -> list[str]:
+    cats = []
+    for key in all_text_keys():
+        c = category_for_key(key)
+        if c not in cats:
+            cats.append(c)
+    return cats
+
+
+def keys_in_category(category: str) -> list[str]:
+    return [k for k in all_text_keys() if category_for_key(k) == category]
+
+
+def validate_text(key: str, value: str):
+    """Проверяет новое значение текста. Возвращает текст ошибки или None."""
+    if not value or not value.strip():
+        return "❌ Текст не может быть пустым."
+    limit = TEXT_LIMITS.get(key)
+    if limit and len(value) > limit:
+        return (
+            f"❌ Слишком длинно: для `{key}` максимум **{limit}** символов "
+            f"(у вас {len(value)}). Это ограничение самого Discord."
+        )
+    if len(value) > 4000:
+        return "❌ Максимальная длина текста — 4000 символов."
+    return None

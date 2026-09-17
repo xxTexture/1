@@ -14,6 +14,8 @@ from config import BotConfig
 COGS = [
     "cogs.tickets",
     "cogs.applications",
+    "cogs.forms_setup",
+    "cogs.text_setup",
     "cogs.moderation",
     "cogs.auto_reply",
     "cogs.donate",

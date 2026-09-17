@@ -64,5 +64,19 @@ class Database:
         async with self._lock:
             return dict(self._data)
 
+    def get_sync(self, key: str, default: Any = None) -> Any:
+        """
+        Синхронное чтение из уже загруженных данных.
+        Нужно там, где нельзя использовать await (например, __getattr__ у текстов
+        или построение View/Modal). Безопасно: все записи проходят через set().
+        """
+        keys = key.split(".")
+        val = self._data
+        for k in keys:
+            if not isinstance(val, dict) or k not in val:
+                return default
+            val = val[k]
+        return val
+
 
 db = Database()

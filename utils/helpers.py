@@ -61,3 +61,27 @@ def mentions_from_ids(guild: discord.Guild, role_ids: list[int]) -> str:
             if role:
                 mentions.append(role.mention)
     return " ".join(mentions) if mentions else ""
+
+
+def set_child_label(view: discord.ui.View, custom_id: str,
+                    label: str = None, emoji=None):
+    """
+    Меняет label/emoji кнопки/меню у уже собранного View.
+    Нужно, чтобы тексты из texts.py (и /тексты) применялись без перезапуска.
+    """
+    for child in view.children:
+        if getattr(child, "custom_id", None) == custom_id:
+            if label:
+                child.label = str(label)[:80]
+            if emoji is not None:
+                child.emoji = emoji or None
+            return child
+    return None
+
+
+def clean_codeblock(text: str, limit: int = 1000) -> str:
+    """Обрезает текст и убирает тройные кавычки, чтобы не ломать ```блоки```."""
+    text = (text or "").replace("```", "'''").strip()
+    if len(text) > limit:
+        text = text[:limit] + "…"
+    return text

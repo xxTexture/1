@@ -8,7 +8,7 @@
         "applications": 0,
         "apps_accepted": 0,
         "apps_rejected": 0,
-        "voice_seconds": 1199,
+        "voice_seconds": 1476,
         "text_seconds": 0,
         "messages": 0
       },
@@ -20,13 +20,13 @@
           "applications": 0,
           "apps_accepted": 0,
           "apps_rejected": 0,
-          "voice_seconds": 1199,
+          "voice_seconds": 1476,
           "text_seconds": 0,
           "messages": 0
         }
       },
       "recent_actions": [],
-      "last_seen": 1789598313
+      "last_seen": 1789613177
     },
     "811287023205351454": {
       "total": {
@@ -36,7 +36,7 @@
         "applications": 0,
         "apps_accepted": 0,
         "apps_rejected": 0,
-        "voice_seconds": 1199,
+        "voice_seconds": 1499,
         "text_seconds": 0,
         "messages": 0
       },
@@ -48,13 +48,13 @@
           "applications": 0,
           "apps_accepted": 0,
           "apps_rejected": 0,
-          "voice_seconds": 1199,
+          "voice_seconds": 1499,
           "text_seconds": 0,
           "messages": 0
         }
       },
       "recent_actions": [],
-      "last_seen": 1789598313
+      "last_seen": 1789613177
     },
     "1264249755123454024": {
       "total": {
@@ -100,6 +100,53 @@
         "BOT"
       ],
       "updated": "2026-09-16T22:37:11.866481"
+    }
+  },
+  "ticket_types": {
+    "поддержка": {
+      "label": "💬 Поддержка",
+      "description": "Общие вопросы, жалобы, баги",
+      "emoji": "💬",
+      "color": 5793266,
+      "prefix": "support",
+      "ping_roles": [
+        1309184833188003940
+      ],
+      "category_id": null,
+      "questions": [
+        {
+          "label": "Кратко опишите вашу проблему:",
+          "placeholder": "Опишите ситуацию подробно...",
+          "required": true,
+          "long": true,
+          "max_length": 1000
+        },
+        {
+          "label": "С какой целью вы подаете заявку?",
+          "placeholder": "",
+          "required": true,
+          "long": true,
+          "max_length": 500
+        }
+      ]
+    },
+    "тех-поддержка": {
+      "label": "⚙️ Тех-поддержка",
+      "description": "Технические проблемы с сервером",
+      "emoji": "⚙️",
+      "color": 15105570,
+      "prefix": "tech-support",
+      "ping_roles": [],
+      "category_id": null,
+      "questions": [
+        {
+          "label": "Кратко опишите вашу проблему:",
+          "placeholder": "Что случилось? Что уже пробовали?",
+          "required": true,
+          "long": true,
+          "max_length": 1000
+        }
+      ]
     }
   }
 }
