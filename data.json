@@ -1,0 +1,105 @@
+{
+  "staff_stats": {
+    "694960621153943594": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 1199,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 1199,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789598313
+    },
+    "811287023205351454": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 1199,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 1199,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789598313
+    },
+    "1264249755123454024": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 862,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 862,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789597975
+    }
+  },
+  "ai_player": {
+    "1463584631784738867": {
+      "name": "Сам Основатель",
+      "nick": "Сам Основатель",
+      "roles": [],
+      "updated": "2026-09-16T22:29:55.590798"
+    },
+    "1549892384916111410": {
+      "name": "AOG BOT",
+      "nick": "AOG BOT",
+      "roles": [
+        "AOG BOT",
+        "BOT"
+      ],
+      "updated": "2026-09-16T22:37:11.866481"
+    }
+  }
+}

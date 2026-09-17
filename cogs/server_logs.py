@@ -305,13 +305,42 @@ class ServerLogsCog(commands.Cog):
 
         # Тайм-аут
         if before.timed_out_until != after.timed_out_until:
+            mod_user = None
+            try:
+                import asyncio
+                await asyncio.sleep(0.5)
+                async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.member_update):
+                    if entry.target.id == after.id and hasattr(entry.after, "timed_out_until"):
+                        mod_user = entry.user
+                        break
+            except Exception:
+                pass
+
             if after.timed_out_until:
                 embed = discord.Embed(title="🔇 Выдан тайм-аут (мут)")
                 embed.add_field(name="Участник", value=after.mention, inline=True)
                 embed.add_field(name="До",       value=discord.utils.format_dt(after.timed_out_until, "f"), inline=True)
+                if mod_user:
+                    embed.add_field(name="Модератор", value=mod_user.mention, inline=True)
+                    if mod_user != guild.me and not mod_user.bot:
+                        try:
+                            from utils.staff_tracker import was_punished_by_bot, record_punishment_issued
+                            if not was_punished_by_bot(guild.id, after.id, "mute"):
+                                await record_punishment_issued(guild.id, mod_user.id, "mute", after.id, "дискорд", "Тайм-аут Discord")
+                        except Exception:
+                            pass
             else:
                 embed = discord.Embed(title="🔊 Тайм-аут снят")
                 embed.add_field(name="Участник", value=after.mention, inline=True)
+                if mod_user:
+                    embed.add_field(name="Модератор", value=mod_user.mention, inline=True)
+                    if mod_user != guild.me and not mod_user.bot:
+                        try:
+                            from utils.staff_tracker import was_punished_by_bot, record_punishment_issued
+                            if not was_punished_by_bot(guild.id, after.id, "unmute"):
+                                await record_punishment_issued(guild.id, mod_user.id, "unmute", after.id, "", "Снятие тайм-аута")
+                        except Exception:
+                            pass
             embed.set_author(name=str(after), icon_url=after.display_avatar.url)
             embeds.append(embed)
 
@@ -329,16 +358,28 @@ class ServerLogsCog(commands.Cog):
         embed.set_author(name=str(user), icon_url=user.display_avatar.url)
         embed.add_field(name="Пользователь", value=f"{user.mention} (`{user.id}`)", inline=True)
 
+        mod_user = None
+        ban_rsn = "не указана"
         try:
             import asyncio
             await asyncio.sleep(0.5)
             async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.ban):
                 if entry.target.id == user.id:
+                    mod_user = entry.user
+                    ban_rsn = entry.reason or "не указана"
                     embed.add_field(name="Забанил", value=entry.user.mention,          inline=True)
-                    embed.add_field(name="Причина", value=entry.reason or "не указана",inline=True)
+                    embed.add_field(name="Причина", value=ban_rsn,                      inline=True)
                     break
         except discord.Forbidden:
             pass
+
+        if mod_user and mod_user != guild.me and not mod_user.bot:
+            try:
+                from utils.staff_tracker import was_punished_by_bot, record_punishment_issued
+                if not was_punished_by_bot(guild.id, user.id, "ban"):
+                    await record_punishment_issued(guild.id, mod_user.id, "ban", user.id, "навсегда", ban_rsn)
+            except Exception:
+                pass
 
         embed.set_footer(text=ts())
         await send_log(guild, "moderation", embed)

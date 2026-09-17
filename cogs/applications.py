@@ -65,6 +65,26 @@ class RejectModal(discord.ui.Modal):
             except discord.Forbidden:
                 pass
 
+        # Учёт в статистике персонала
+        try:
+            from utils.staff_tracker import record_application_reviewed
+            app_type = "персонал"
+            title_lower = (embed.title or "").lower()
+            if "дс" in title_lower or "дискорд" in title_lower:
+                app_type = "дс-адм"
+            elif "билдер" in title_lower:
+                app_type = "билдеры"
+            await record_application_reviewed(
+                guild_id=interaction.guild.id,
+                staff_id=interaction.user.id,
+                decision="rejected",
+                app_type=app_type,
+                applicant_id=applicant.id if applicant else (uid if user_id_match else 0),
+                reason=self.reason.value,
+            )
+        except Exception as e:
+            print(f"[StaffStats] Ошибка учёта отклонения заявки: {e}")
+
         await interaction.response.send_message("❌ Заявка отклонена, игрок уведомлён.", ephemeral=True)
 
 
@@ -98,6 +118,25 @@ class AdminApproveView(discord.ui.View):
                 await applicant.send(embed=dm_embed)
             except discord.Forbidden:
                 pass
+
+        # Учёт в статистике персонала
+        try:
+            from utils.staff_tracker import record_application_reviewed
+            app_type = "персонал"
+            title_lower = (embed.title or "").lower()
+            if "дс" in title_lower or "дискорд" in title_lower:
+                app_type = "дс-адм"
+            elif "билдер" in title_lower:
+                app_type = "билдеры"
+            await record_application_reviewed(
+                guild_id=interaction.guild.id,
+                staff_id=interaction.user.id,
+                decision="accepted",
+                app_type=app_type,
+                applicant_id=applicant.id if applicant else (uid if user_id_match else 0),
+            )
+        except Exception as e:
+            print(f"[StaffStats] Ошибка учёта принятия заявки: {e}")
 
         await interaction.response.send_message("✅ Заявка принята, игрок уведомлён.", ephemeral=True)
 

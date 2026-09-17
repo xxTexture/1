@@ -4,7 +4,7 @@
 
 class BotConfig:
     # --- Токены ---
-    TOKEN      = "MTQ2MzU4NDYzMTc4NDczODg2Nw.GFIkO0.P5crr_2QvwME8j45dETA0lWr8NKk7r6G22zlAo"
+    TOKEN      = ""
     AI_API_KEY = ""   # ← Anthropic API ключ (claude.ai → Settings → API Keys)
 
     # --- Роли ---
@@ -17,6 +17,11 @@ class BotConfig:
     DS_ADMIN_PING_ROLES = [1390285875169988638]   # ← ЗАПОЛНИТЬ
     BUILDER_PING_ROLES  = [1390285875169988638]   # ← ЗАПОЛНИТЬ
 
+    # --- Роли персонала для статистики и рейтинга (по категориям отдельно) ---
+    STAFF_SERVER_ROLES  = [1390285875169988638]  # 🛡️ Персонал сервера (хелперы, модераторы, кураторы)
+    STAFF_DISCORD_ROLES = [1390285875169988638]  # ⚙️ Персонал дискорда (модераторы Discord)
+    STAFF_BUILDER_ROLES = [1390285875169988638]  # 🔨 Билдеры (строители)
+
     # Пинги при создании тикетов
     SUPPORT_PING_ROLES      = [1309184833188003940]  # ← ЗАПОЛНИТЬ
     TECH_SUPPORT_PING_ROLES = [0]                    # ← ЗАПОЛНИТЬ
@@ -28,9 +33,9 @@ class BotConfig:
     SERVER_LOG_CHANNEL_ID = 0  # ← ЗАПОЛНИТЬ: канал для полных логов сервера (0 = выключено)
 
     # --- Каналы заявок ---
-    APP_CH_STAFF    = 1485052069302767688
-    APP_CH_DS_ADMIN = 1485052130455851048
-    APP_CH_BUILDER  = 1485052099120201889
+    APP_CH_STAFF    = 1317340338754551808
+    APP_CH_DS_ADMIN = 1359197344238800977
+    APP_CH_BUILDER  = 1359196726237335763
 
     # --- Канал приветствий (0 = отключено) ---
     WELCOME_CHANNEL_ID = 0   # ← ЗАПОЛНИТЬ: ID канала для приветствий

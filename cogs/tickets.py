@@ -82,6 +82,18 @@ class TicketCloseModal(discord.ui.Modal, title="Закрытие тикета"):
             log_em2.add_field(name="Причина", value=f"```{self.reason.value}```", inline=False)
             await log_ch2.send(embed=log_em2)
 
+        # Учёт в статистике персонала
+        try:
+            from utils.staff_tracker import record_ticket_closed
+            await record_ticket_closed(
+                guild_id=guild.id,
+                staff_id=interaction.user.id,
+                channel_name=channel.name,
+                reason=self.reason.value,
+            )
+        except Exception as e:
+            print(f"[StaffStats] Ошибка учёта тикета: {e}")
+
         await channel.delete()
 
 
@@ -221,6 +233,12 @@ class TicketsCog(commands.Cog):
             await interaction.response.send_message("❌ Только в каналах тикетов.", ephemeral=True); return
         await interaction.channel.edit(name=новое_имя)
         await interaction.response.send_message(f"✅ Канал переименован в `{новое_имя}`.")
+
+    @ticket_group.command(name="close", description="🔒 Закрыть текущий тикет с указанием причины")
+    async def ticket_close(self, interaction: discord.Interaction):
+        if not is_ticket_channel(interaction.channel):
+            await interaction.response.send_message("❌ Только в каналах тикетов.", ephemeral=True); return
+        await interaction.response.send_modal(TicketCloseModal())
 
 
 async def setup(bot):
