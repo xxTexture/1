@@ -2,7 +2,8 @@
 📋 СИСТЕМА ЗАЯВОК В КОМАНДУ
 - Направления: Персонал / ДС-Адм / Билдеры
 - Вопросы анкеты настраиваются через /заявки-настройка (до 5 вопросов)
-- Причина при отклонении → в канал + ЛС
+- 🖼️ Баннер внутри анкеты: /заявки-настройка баннер <направление> <url>
+- Причина при отклонении → в канал + ЛС; при принятии → ЛС (тексты через /тексты)
 - Кулдаун на заявки
 - Пинг ролей + пинг игрока в сообщении
 - Панель (/setup-applications) обновляется автоматически при изменении настроек
@@ -18,7 +19,9 @@ from discord.ext import commands
 from config import BotConfig
 from database import db
 from texts import T
-from utils.forms import APP_TYPE_IDS, MAX_QUESTIONS, app_questions_sync, make_question
+from utils.forms import (
+    APP_TYPE_IDS, MAX_QUESTIONS, app_questions_sync, app_settings_sync, make_question,
+)
 from utils.helpers import clean_codeblock, mentions_from_ids, set_child_label
 
 # Статическая часть направлений (канал/пинги/цвет). Названия и описания —
@@ -116,7 +119,10 @@ class RejectModal(discord.ui.Modal):
             try:
                 dm_embed = discord.Embed(
                     title=T.APP_REJECTED_DM_TITLE,
-                    description=T.APP_REJECTED_DM_DESC.format(guild=interaction.guild.name),
+                    description=T.APP_REJECTED_DM_DESC.format(
+                        guild=interaction.guild.name,
+                        type=app_label(detect_app_type(embed.title or "")),
+                    ),
                     color=discord.Color.red(), timestamp=discord.utils.utcnow(),
                 )
                 dm_embed.add_field(name=T.APP_DM_REASON_FIELD,
@@ -181,7 +187,10 @@ class AdminApproveView(discord.ui.View):
             try:
                 dm_embed = discord.Embed(
                     title=T.APP_ACCEPTED_DM_TITLE,
-                    description=T.APP_ACCEPTED_DM_DESC.format(guild=interaction.guild.name),
+                    description=T.APP_ACCEPTED_DM_DESC.format(
+                        guild=interaction.guild.name,
+                        type=app_label(detect_app_type(embed.title or "")),
+                    ),
                     color=discord.Color.green(), timestamp=discord.utils.utcnow(),
                 )
                 await applicant.send(embed=dm_embed)
@@ -257,6 +266,9 @@ class ApplicationModal(discord.ui.Modal):
         if not target:
             await interaction.followup.send(T.APP_NO_CHANNEL, ephemeral=True); return
 
+        # Настройки направления: баннер (/заявки-настройка баннер)
+        settings = app_settings_sync(self.app_type)
+
         embed = discord.Embed(
             title=T.APP_NEW_TITLE.format(type=app_label(self.app_type)),
             color=cfg["color"], timestamp=discord.utils.utcnow(),
@@ -274,6 +286,10 @@ class ApplicationModal(discord.ui.Modal):
                 value=f"```{clean_codeblock(value, 900)}```",
                 inline=False,
             )
+        # 🖼️ Баннер внутри анкеты (настраивается: /заявки-настройка баннер)
+        banner = str(settings.get("banner") or "").strip()
+        if banner:
+            embed.set_image(url=banner)
         embed.set_footer(text=T.APP_FOOTER.format(id=user.id))
 
         ping_str = mentions_from_ids(guild, [r for r in cfg["ping_ids"] if r])

@@ -1,7 +1,9 @@
 """
 🧰 НАСТРОЙКА ФОРМ ТИКЕТОВ И ЗАЯВОК
-/тикет-настройка  — типы обращений, вопросы форм, роли, категории, тест формы
-/заявки-настройка — вопросы анкет для заявок (персонал / дс-адм / билдеры)
+/тикет-настройка  — типы обращений, вопросы форм, роли, категории, тест формы,
+                    баннер внутри тикета, роли кнопки «Передать»
+/заявки-настройка — вопросы анкет для заявок (персонал / дс-адм / билдеры),
+                    баннер анкеты
 
 Все настройки хранятся в data.json и применяются мгновенно:
 панели тикетов/заявок обновляются автоматически.
@@ -15,8 +17,9 @@ from config import BotConfig
 from texts import T
 from utils.forms import (
     APP_TYPE_IDS, MAX_QUESTIONS, MAX_TYPES,
-    load_app_questions, load_types,
-    make_question, parse_color, save_app_questions, save_types, slugify, valid_slug,
+    load_app_questions, load_app_settings, load_types,
+    make_question, parse_color, save_app_questions, save_app_settings, save_types,
+    slugify, valid_slug,
 )
 from cogs.applications import app_label
 
@@ -92,11 +95,14 @@ def _types_overview_embed(types: dict) -> discord.Embed:
     )
     for tid, cfg in types.items():
         roles = [f"<@&{r}>" for r in cfg.get("ping_roles", []) if r] or ["—"]
+        escal = [f"<@&{r}>" for r in cfg.get("escalate_roles", []) if r] or ["—"]
         cat = cfg.get("category_id") or BotConfig.TICKET_CATEGORY_ID
         lines = [
             f"Код: `{tid}`",
             f"Префикс канала: `{cfg.get('prefix', '—')}`  •  Цвет: `#{(cfg.get('color') or 0):06X}`",
             f"Пинг: {' '.join(roles)}",
+            f"🔁 Передача: {' '.join(escal)}",
+            f"🖼️ Баннер: {'есть' if str(cfg.get('banner') or '').strip() else '—'}",
             f"Категория: {'по умолчанию' if not cat else f'<#{cat}>'}",
         ]
         qs = cfg.get("questions", [])
@@ -123,8 +129,10 @@ class FormsSetupCog(commands.Cog):
     )
     ts_q = app_commands.Group(name="вопрос", description="Вопросы формы обращения")
     ts_r = app_commands.Group(name="роль", description="Роли для пинга в тикете")
+    ts_e = app_commands.Group(name="передача", description="Роли для кнопки «Передать» (старший состав)")
     ts.add_command(ts_q)
     ts.add_command(ts_r)
+    ts.add_command(ts_e)
 
     @ts.command(name="список", description="📃 Показать все типы тикетов и их формы")
     async def ts_list(self, interaction: discord.Interaction):
@@ -180,7 +188,9 @@ class FormsSetupCog(commands.Cog):
             "color": color,
             "prefix": prefix,
             "ping_roles": [],
+            "escalate_roles": [],
             "category_id": BotConfig.TICKET_CATEGORY_ID,
+            "banner": "",
             "questions": [make_question(str(T.TICKET_REASON_LABEL), str(T.TICKET_REASON_PH), True, True, 1000)],
         }
         await save_types(types)
@@ -188,7 +198,9 @@ class FormsSetupCog(commands.Cog):
         await interaction.response.send_message(
             f"✅ Тип **{название}** (`{код}`) добавлен! Каналы будут называться `{prefix}-ник`.\n"
             f"📝 Добавьте вопросы формы: `/тикет-настройка вопрос добавить {код} ...`\n"
-            f"👥 Добавьте роли для пинга: `/тикет-настройка роль добавить {код} @роль`"
+            f"👥 Добавьте роли для пинга: `/тикет-настройка роль добавить {код} @роль`\n"
+            f"🔁 Роли передачи: `/тикет-настройка передача добавить {код} @роль`\n"
+            f"🖼️ Баннер: `/тикет-настройка баннер {код} <url>`"
             + (f"\n🔄 Обновлённых панелей: {updated}" if updated else ""),
             ephemeral=True,
         )
@@ -261,6 +273,34 @@ class FormsSetupCog(commands.Cog):
             + (f"**{категория.name}**" if категория else "по умолчанию (из config.py)"),
             ephemeral=True,
         )
+
+    @ts.command(name="баннер", description="🖼️ Картинка-баннер ВНУТРИ тикета (показывается над ответами формы)")
+    @app_commands.describe(
+        код="Тип обращения",
+        ссылка="URL картинки (https://...png/jpg/gif/mp4-link). Не указывай = убрать баннер",
+    )
+    @app_commands.autocomplete(код=type_autocomplete)
+    async def ts_banner(self, interaction: discord.Interaction, код: str, ссылка: str = None):
+        types = await load_types()
+        if код not in types:
+            await interaction.response.send_message(f"❌ Тип `{код}` не найден.", ephemeral=True)
+            return
+        url = (ссылка or "").strip()
+        if url and not url.lower().startswith("https://"):
+            await interaction.response.send_message(
+                "❌ Нужна прямая ссылка на картинку, начинается с `https://`\n"
+                "💡 Совет: отправь картинку в любой канал Discord → ПКМ → «Копировать ссылку».",
+                ephemeral=True,
+            )
+            return
+        types[код]["banner"] = url
+        await save_types(types)
+        await interaction.response.send_message(
+            f"🖼️ Баннер для `{код}`: " + (f"установлен ✅\n{url}" if url else "убран."),
+            ephemeral=True,
+        )
+
+
 
     @ts.command(name="тест", description="🧪 Открыть форму типа и посмотреть предпросмотр")
     @app_commands.autocomplete(код=type_autocomplete)
@@ -370,6 +410,57 @@ class FormsSetupCog(commands.Cog):
         await save_types(types)
         await interaction.response.send_message(f"✅ Список пинга `{код}` очищен.", ephemeral=True)
 
+    # ── передача (кнопка «Передать» в тикете) ──
+    @ts_e.command(name="добавить", description="🔁 Старшая роль: тикет передаётся ей кнопкой «Передать»")
+    @app_commands.describe(код="Тип обращения", роль="Роль, которой передавать (куратор, админ...)")
+    @app_commands.autocomplete(код=type_autocomplete)
+    async def ts_e_add(self, interaction: discord.Interaction, код: str, роль: discord.Role):
+        types = await load_types()
+        if код not in types:
+            await interaction.response.send_message(f"❌ Тип `{код}` не найден.", ephemeral=True)
+            return
+        roles = types[код].get("escalate_roles", [])
+        if роль.id in roles:
+            await interaction.response.send_message("ℹ️ Эта роль уже добавлена.", ephemeral=True)
+            return
+        roles.append(роль.id)
+        types[код]["escalate_roles"] = roles
+        await save_types(types)
+        await interaction.response.send_message(
+            f"✅ Кнопка «**{T.TICKET_FORWARD_BTN}**» в тикетах `{код}` будет пинговать {роль.mention} "
+            f"и пускать её в канал.\n💬 Текст кнопки меняется через `/тексты изменить TICKET_FORWARD_BTN`",
+            ephemeral=True)
+
+    @ts_e.command(name="удалить", description="🗑️ Убрать роль из передачи")
+    @app_commands.autocomplete(код=type_autocomplete)
+    async def ts_e_remove(self, interaction: discord.Interaction, код: str, роль: discord.Role):
+        types = await load_types()
+        if код not in types:
+            await interaction.response.send_message(f"❌ Тип `{код}` не найден.", ephemeral=True)
+            return
+        roles = types[код].get("escalate_roles", [])
+        if роль.id not in roles:
+            await interaction.response.send_message("ℹ️ Этой роли нет в списке передачи.", ephemeral=True)
+            return
+        roles.remove(роль.id)
+        types[код]["escalate_roles"] = roles
+        await save_types(types)
+        await interaction.response.send_message(
+            f"✅ Роль {роль.mention} убрана из передачи тикетов `{код}`.", ephemeral=True)
+
+    @ts_e.command(name="очистить", description="🧹 Убрать все роли из передачи")
+    @app_commands.autocomplete(код=type_autocomplete)
+    async def ts_e_clear(self, interaction: discord.Interaction, код: str):
+        types = await load_types()
+        if код not in types:
+            await interaction.response.send_message(f"❌ Тип `{код}` не найден.", ephemeral=True)
+            return
+        types[код]["escalate_roles"] = []
+        await save_types(types)
+        await interaction.response.send_message(
+            f"✅ Список передачи `{код}` очищен. Кнопка «Передать» будет сообщать, что роли не настроены.",
+            ephemeral=True)
+
     # ═══════════════════════ 📋 /заявки-настройка ═══════════════════════
     asg = app_commands.Group(
         name="заявки-настройка",
@@ -379,22 +470,56 @@ class FormsSetupCog(commands.Cog):
     asg_q = app_commands.Group(name="вопрос", description="Вопросы анкеты")
     asg.add_command(asg_q)
 
-    @asg.command(name="список", description="📃 Вопросы анкеты направления")
+    @asg.command(name="список", description="📃 Вопросы и настройки анкеты направления")
     @app_commands.choices(направление=APP_CHOICES)
     async def asg_list(self, interaction: discord.Interaction, направление: str = None):
         qs_all = await load_app_questions()
+        st_all = await load_app_settings()
         ids = [направление] if направление else list(APP_TYPE_IDS)
-        em = discord.Embed(title="📋 Вопросы анкет", color=BotConfig.APP_COLOR)
+        em = discord.Embed(title="📋 Настройки анкет", color=BotConfig.APP_COLOR)
         for aid in ids:
+            st = st_all.get(aid, {})
             qs = qs_all.get(aid, [])
             lines = [
-                f"{i + 1}. **{q.get('label', '?')}** "
-                f"({'обяз.' if q.get('required', True) else 'необяз.'}, "
-                f"{'длинное' if q.get('long') else 'короткое'} поле, ≤{q.get('max_length', 1000)})"
-                for i, q in enumerate(qs)
-            ] or ["*Вопросы не настроены — будет стандартный*"]
+                f"🖼️ Баннер: {'есть' if str(st.get('banner') or '').strip() else '—'}",
+                "**Вопросы:**",
+                *(
+                    f"{i + 1}. **{q.get('label', '?')}** "
+                    f"({'обяз.' if q.get('required', True) else 'необяз.'}, "
+                    f"{'длинное' if q.get('long') else 'короткое'} поле, ≤{q.get('max_length', 1000)})"
+                    for i, q in enumerate(qs)
+                ),
+            ] if qs else [
+                f"🖼️ Баннер: {'есть' if str(st.get('banner') or '').strip() else '—'}",
+                "*Вопросы не настроены — будет стандартный*",
+            ]
             em.add_field(name=app_label(aid), value="\n".join(lines)[:1024], inline=False)
         await interaction.response.send_message(embed=em, ephemeral=True)
+
+    @asg.command(name="баннер", description="🖼️ Картинка-баннер ВНУТРИ анкеты заявки")
+    @app_commands.describe(
+        направление="Для какого направления",
+        ссылка="URL картинки (https://...png/jpg/gif). Не указывай = убрать баннер",
+    )
+    @app_commands.choices(направление=APP_CHOICES)
+    async def asg_banner(self, interaction: discord.Interaction, направление: str, ссылка: str = None):
+        url = (ссылка or "").strip()
+        if url and not url.lower().startswith("https://"):
+            await interaction.response.send_message(
+                "❌ Нужна прямая ссылка на картинку, начинается с `https://`\n"
+                "💡 Совет: отправь картинку в любой канал Discord → ПКМ → «Копировать ссылку».",
+                ephemeral=True,
+            )
+            return
+        st = await load_app_settings()
+        st.setdefault(направление, {})["banner"] = url
+        await save_app_settings(st)
+        await interaction.response.send_message(
+            f"🖼️ Баннер анкеты «{направление}»: " + (f"установлен ✅\n{url}" if url else "убран."),
+            ephemeral=True,
+        )
+
+
 
     @asg_q.command(name="добавить", description="➕ Добавить вопрос в анкету направления")
     @app_commands.describe(

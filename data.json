@@ -1,132 +1,45 @@
 {
-  "staff_stats": {
-    "694960621153943594": {
-      "total": {
-        "tickets": 0,
-        "punishments": 0,
-        "punishments_by_action": {},
-        "applications": 0,
-        "apps_accepted": 0,
-        "apps_rejected": 0,
-        "voice_seconds": 1476,
-        "text_seconds": 0,
-        "messages": 0
-      },
-      "daily": {
-        "2026-09-17": {
-          "tickets": 0,
-          "punishments": 0,
-          "punishments_by_action": {},
-          "applications": 0,
-          "apps_accepted": 0,
-          "apps_rejected": 0,
-          "voice_seconds": 1476,
-          "text_seconds": 0,
-          "messages": 0
-        }
-      },
-      "recent_actions": [],
-      "last_seen": 1789613177
+  "panels": {
+    "tickets": {
+      "1289611519578869781": {
+        "1312471741146071062": 1550874591046533191
+      }
     },
-    "811287023205351454": {
-      "total": {
-        "tickets": 0,
-        "punishments": 0,
-        "punishments_by_action": {},
-        "applications": 0,
-        "apps_accepted": 0,
-        "apps_rejected": 0,
-        "voice_seconds": 1499,
-        "text_seconds": 0,
-        "messages": 0
-      },
-      "daily": {
-        "2026-09-17": {
-          "tickets": 0,
-          "punishments": 0,
-          "punishments_by_action": {},
-          "applications": 0,
-          "apps_accepted": 0,
-          "apps_rejected": 0,
-          "voice_seconds": 1499,
-          "text_seconds": 0,
-          "messages": 0
-        }
-      },
-      "recent_actions": [],
-      "last_seen": 1789613177
-    },
-    "1264249755123454024": {
-      "total": {
-        "tickets": 0,
-        "punishments": 0,
-        "punishments_by_action": {},
-        "applications": 0,
-        "apps_accepted": 0,
-        "apps_rejected": 0,
-        "voice_seconds": 862,
-        "text_seconds": 0,
-        "messages": 0
-      },
-      "daily": {
-        "2026-09-17": {
-          "tickets": 0,
-          "punishments": 0,
-          "punishments_by_action": {},
-          "applications": 0,
-          "apps_accepted": 0,
-          "apps_rejected": 0,
-          "voice_seconds": 862,
-          "text_seconds": 0,
-          "messages": 0
-        }
-      },
-      "recent_actions": [],
-      "last_seen": 1789597975
-    }
-  },
-  "ai_player": {
-    "1463584631784738867": {
-      "name": "Сам Основатель",
-      "nick": "Сам Основатель",
-      "roles": [],
-      "updated": "2026-09-16T22:29:55.590798"
-    },
-    "1549892384916111410": {
-      "name": "AOG BOT",
-      "nick": "AOG BOT",
-      "roles": [
-        "AOG BOT",
-        "BOT"
-      ],
-      "updated": "2026-09-16T22:37:11.866481"
+    "apps": {
+      "1289611519578869781": {
+        "1312466708753027092": 1550869450872586291
+      }
     }
   },
   "ticket_types": {
     "поддержка": {
-      "label": "💬 Поддержка",
-      "description": "Общие вопросы, жалобы, баги",
+      "label": "💬 Помощь",
+      "description": "Общие вопросы, помощь, баги",
       "emoji": "💬",
       "color": 5793266,
       "prefix": "support",
       "ping_roles": [
+        1390822409677963376
+      ],
+      "escalate_roles": [
         1309184833188003940
       ],
-      "category_id": null,
+      "category_id": 1550197469005086760,
+      "banner": "https://cdn.discordapp.com/attachments/1305696124924985428/1550881249789485116/8BBFE2F0-A863-40DB-A051-C1701CEE15C8.png?ex=6aaff237&is=6aaea0b7&hm=10b584f31061e3ae948d0bbe550864e952a4bb8cb51fd8c2624890594e1eb326&",
       "questions": [
         {
-          "label": "Кратко опишите вашу проблему:",
-          "placeholder": "Опишите ситуацию подробно...",
+          "label": "Ваш никнейм в игре",
+          "placeholder": "Nickname",
           "required": true,
-          "long": true,
-          "max_length": 1000
+          "long": false,
+          "max_length": 100
         },
         {
-          "label": "С какой целью вы подаете заявку?",
-          "placeholder": "",
+          "label": "Опишите вашу проблему",
+          "placeholder": "Опишите вашу проблему:",
           "required": true,
           "long": true,
-          "max_length": 500
+          "max_length": 2500
         }
       ]
     },
@@ -136,17 +49,566 @@
       "emoji": "⚙️",
       "color": 15105570,
       "prefix": "tech-support",
-      "ping_roles": [],
-      "category_id": null,
+      "ping_roles": [
+        1549008664872882176
+      ],
+      "escalate_roles": [
+        1317576038582194328
+      ],
+      "category_id": 1550202601562447962,
+      "banner": "https://cdn.discordapp.com/attachments/1305696124924985428/1550881319838425158/796309BE-5CDC-4DD2-941D-B1BCA2508FD9.png?ex=6aaff248&is=6aaea0c8&hm=903d7d2f8783da546d7fb1c18aebb2403d6999493859d7f44fefd7ffb6fcc79a&",
       "questions": [
         {
-          "label": "Кратко опишите вашу проблему:",
-          "placeholder": "Что случилось? Что уже пробовали?",
+          "label": "Ваш никнейм в игре",
+          "placeholder": "Nickname",
+          "required": true,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Опишите вашу проблему",
+          "placeholder": "Опишите вашу проблему:",
+          "required": true,
+          "long": true,
+          "max_length": 3500
+        }
+      ]
+    },
+    "жалоба-игрок": {
+      "label": "🚨 Жалоба на игрока",
+      "description": "Читы, оскорбления, гриферство и другие нарушения",
+      "emoji": "🚨",
+      "color": 15548997,
+      "prefix": "report-player",
+      "ping_roles": [
+        1550884876239110165
+      ],
+      "escalate_roles": [
+        1309184833188003940
+      ],
+      "category_id": 1550208116023627837,
+      "banner": "https://cdn.discordapp.com/attachments/1305696124924985428/1550881583333118053/B990412F-537B-44D3-9196-6624E399B61C.png?ex=6aaff287&is=6aaea107&hm=e84f9b5762faec8f57b892c5e12aee30118d66c57a09d09b9501ffb8b596cbea&",
+      "questions": [
+        {
+          "label": "Ваш никнейм:",
+          "placeholder": "Укажите ваш игровой ник.",
+          "required": true,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Никнейм нарушителя:",
+          "placeholder": "Укажите ник игрока, на которого подается жалоба.",
+          "required": true,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Описание ситуации:",
+          "placeholder": "Подробно опишите, что произошло. Укажите, какое правило было нарушено.",
           "required": true,
           "long": true,
           "max_length": 1000
+        },
+        {
+          "label": "Доказательства:",
+          "placeholder": "После создания тикета прикрепите все имеющиеся доказательства в чат тикета. (Или ссылку сюда)",
+          "required": false,
+          "long": true,
+          "max_length": 200
+        }
+      ]
+    },
+    "жалоба-персонал": {
+      "label": "🛡️ Жалоба на персонал",
+      "description": "Жалобы на действия сотрудников проекта",
+      "emoji": "🛡️",
+      "color": 16705372,
+      "prefix": "report-staff",
+      "ping_roles": [
+        1550885231526158386
+      ],
+      "escalate_roles": [
+        1309184833188003940
+      ],
+      "category_id": 1550208263600214146,
+      "banner": "https://cdn.discordapp.com/attachments/1305696124924985428/1550881390512570468/3F7A537B-AC96-449B-9B65-9B1F919C2535.png?ex=6aaff259&is=6aaea0d9&hm=5443e5ef674ef936f5a6449f8d1ad2786129aecf25675b8958d6007aa2bc8004&",
+      "questions": [
+        {
+          "label": "Ваш никнейм:",
+          "placeholder": "Укажите ваш игровой ник.",
+          "required": true,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Никнейм сотрудника:",
+          "placeholder": "Укажите никнейм представителя персонала, на которого подается жалоба.",
+          "required": true,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Должность сотрудника:",
+          "placeholder": "Укажите должность сотрудника , если она вам известна.",
+          "required": false,
+          "long": false,
+          "max_length": 100
+        },
+        {
+          "label": "Описание ситуации:",
+          "placeholder": "Подробно опишите произошедшее. Укажите, какие действия сотрудника вы считаете нарушением.",
+          "required": true,
+          "long": true,
+          "max_length": 2000
+        },
+        {
+          "label": "Доказательства:",
+          "placeholder": "После создания тикета прикрепите все имеющиеся доказательства в чат тикета.(Или ссылку сюда)",
+          "required": false,
+          "long": true,
+          "max_length": 200
         }
       ]
     }
+  },
+  "migrations": {
+    "report_types": true
+  },
+  "tickets": {},
+  "ticket_cd": {
+    "1172938186046062746": 1789812740.234927,
+    "694960621153943594": 1789835483.6374
+  },
+  "staff_stats": {
+    "694960621153943594": {
+      "total": {
+        "tickets": 17,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 66010,
+        "text_seconds": 1090,
+        "messages": 27
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 1,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 2996,
+          "text_seconds": 213,
+          "messages": 3
+        },
+        "2026-09-18": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 17137,
+          "text_seconds": 284,
+          "messages": 3
+        },
+        "2026-09-19": {
+          "tickets": 16,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 45877,
+          "text_seconds": 593,
+          "messages": 21
+        }
+      },
+      "recent_actions": [
+        {
+          "ts": 1789846381,
+          "type": "ticket",
+          "text": "Закрыл тикет #support-xxtexture7716 — 12412412"
+        },
+        {
+          "ts": 1789838099,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-staff-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789838060,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-player-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789838002,
+          "type": "ticket",
+          "text": "Закрыл тикет #tech-support-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789837951,
+          "type": "ticket",
+          "text": "Закрыл тикет #support-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789836567,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-player-xxtexture7716 — 2"
+        },
+        {
+          "ts": 1789836538,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-staff-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789830882,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-staff-xxtexture7716 — 2"
+        },
+        {
+          "ts": 1789830875,
+          "type": "ticket",
+          "text": "Закрыл тикет #report-player-xxtexture7716 — 2"
+        },
+        {
+          "ts": 1789829696,
+          "type": "ticket",
+          "text": "Закрыл тикет #support-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789828944,
+          "type": "ticket",
+          "text": "Закрыл тикет #tech-support-xxtexture7716 — 1"
+        },
+        {
+          "ts": 1789828563,
+          "type": "ticket",
+          "text": "Закрыл тикет #tech-support-xxtexture7716 — 2"
+        }
+      ],
+      "last_seen": 1789846381
+    },
+    "811287023205351454": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 54684,
+        "text_seconds": 209,
+        "messages": 3
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 2996,
+          "text_seconds": 0,
+          "messages": 0
+        },
+        "2026-09-18": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 22009,
+          "text_seconds": 149,
+          "messages": 2
+        },
+        "2026-09-19": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 29679,
+          "text_seconds": 60,
+          "messages": 1
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789844024
+    },
+    "999646105279143986": {
+      "total": {
+        "tickets": 2,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 1,
+        "apps_accepted": 0,
+        "apps_rejected": 1,
+        "voice_seconds": 5886,
+        "text_seconds": 319,
+        "messages": 6
+      },
+      "daily": {
+        "2026-09-17": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 2996,
+          "text_seconds": 0,
+          "messages": 0
+        },
+        "2026-09-18": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 2890,
+          "text_seconds": 75,
+          "messages": 2
+        },
+        "2026-09-19": {
+          "tickets": 2,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 1,
+          "apps_accepted": 0,
+          "apps_rejected": 1,
+          "voice_seconds": 0,
+          "text_seconds": 244,
+          "messages": 4
+        }
+      },
+      "recent_actions": [
+        {
+          "ts": 1789828619,
+          "type": "application",
+          "text": "Отклонил заявку [персонал] от <@694960621153943594>"
+        },
+        {
+          "ts": 1789828604,
+          "type": "ticket",
+          "text": "Закрыл тикет #tech-support-xxtexture7716 — Окунь"
+        },
+        {
+          "ts": 1789826392,
+          "type": "ticket",
+          "text": "Закрыл тикет #support-xxtexture7716 — Окунь"
+        }
+      ],
+      "last_seen": 1789828770
+    },
+    "1158262803489112155": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 373,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-18": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 373,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789735495
+    },
+    "1264249755123454024": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 31820,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-19": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 31820,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789845129
+    },
+    "763059471689056277": {
+      "total": {
+        "tickets": 0,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 13384,
+        "text_seconds": 0,
+        "messages": 0
+      },
+      "daily": {
+        "2026-09-19": {
+          "tickets": 0,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 13384,
+          "text_seconds": 0,
+          "messages": 0
+        }
+      },
+      "recent_actions": [],
+      "last_seen": 1789793065
+    },
+    "1172938186046062746": {
+      "total": {
+        "tickets": 1,
+        "punishments": 0,
+        "punishments_by_action": {},
+        "applications": 0,
+        "apps_accepted": 0,
+        "apps_rejected": 0,
+        "voice_seconds": 0,
+        "text_seconds": 60,
+        "messages": 1
+      },
+      "daily": {
+        "2026-09-19": {
+          "tickets": 1,
+          "punishments": 0,
+          "punishments_by_action": {},
+          "applications": 0,
+          "apps_accepted": 0,
+          "apps_rejected": 0,
+          "voice_seconds": 0,
+          "text_seconds": 60,
+          "messages": 1
+        }
+      },
+      "recent_actions": [
+        {
+          "ts": 1789823554,
+          "type": "ticket",
+          "text": "Закрыл тикет #support-mul1x — фвфвф"
+        }
+      ],
+      "last_seen": 1789823554
+    }
+  },
+  "ai_player": {
+    "1385683612409528320": {
+      "name": "beluy22",
+      "nick": "d9",
+      "roles": [
+        "🙍‍♂️boy"
+      ],
+      "updated": "2026-09-18T19:22:12.379779"
+    },
+    "763059471689056277": {
+      "name": "ian.57148632",
+      "nick": "ian.5714",
+      "roles": [
+        "𖣐Support Team  | AOG",
+        "𖣐Technical Support | AOG",
+        "(X) Manager | AOG"
+      ],
+      "updated": "2026-09-18T22:09:03.585475"
+    },
+    "1520775316023545876": {
+      "name": "antongorenskij15_24721",
+      "nick": "Antonio",
+      "roles": [
+        "🙍‍♂️boy"
+      ],
+      "updated": "2026-09-18T23:11:38.378623"
+    },
+    "1184164062976823388": {
+      "name": "m_kss",
+      "nick": "Maks",
+      "roles": [
+        "🙍‍♂️boy",
+        "User | AOG"
+      ],
+      "updated": "2026-09-19T01:57:38.923801"
+    },
+    "1296897447867715597": {
+      "name": "m1rchyxbaby_22230",
+      "nick": "m1rchysabaka",
+      "roles": [
+        "🙍girl",
+        "User | AOG"
+      ],
+      "updated": "2026-09-19T01:57:33.358903"
+    },
+    "999646105279143986": {
+      "name": "golden432",
+      "nick": "Амбассадор Кохфе",
+      "roles": [
+        "Owners Team | AOG"
+      ],
+      "updated": "2026-09-19T14:41:11.403594"
+    },
+    "1463225998119014551": {
+      "name": "diana11272",
+      "nick": "Diana",
+      "roles": [
+        "🙍girl",
+        "User | AOG"
+      ],
+      "updated": "2026-09-19T15:10:36.639058"
+    },
+    "1172938186046062746": {
+      "name": "_mul1x.",
+      "nick": "˖ ࣪⊹mul1x⋆˚꩜｡",
+      "roles": [
+        "🙍girl",
+        "User | AOG"
+      ],
+      "updated": "2026-09-19T15:10:44.703651"
+    },
+    "1516887198610362422": {
+      "name": "pilot_11111",
+      "nick": "pilot",
+      "roles": [
+        "🙍‍♂️boy",
+        "User | AOG"
+      ],
+      "updated": "2026-09-19T15:10:57.463790"
+    }
+  },
+  "app_cd": {
+    "694960621153943594": {}
   }
 }

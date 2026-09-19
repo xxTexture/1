@@ -49,16 +49,21 @@ async def main():
     ts = bot.tree.get_command("тикет-настройка")
     assert ts is not None, "нет /тикет-настройка"
     ts_subs = {c.name for c in ts.commands}
-    assert {"список", "добавить", "удалить", "изменить", "категория", "тест", "вопрос", "роль"} <= ts_subs, ts_subs
+    assert {"список", "добавить", "удалить", "изменить", "категория", "тест",
+            "вопрос", "роль", "передача", "баннер"} <= ts_subs, ts_subs
     q_sub = next(c for c in ts.commands if c.name == "вопрос")
     assert {c.name for c in q_sub.commands} == {"добавить", "удалить"}
     r_sub = next(c for c in ts.commands if c.name == "роль")
     assert {c.name for c in r_sub.commands} == {"добавить", "удалить", "очистить"}
-    ok("/тикет-настройка: 6 команд + подгруппы «вопрос» и «роль»")
+    e_sub = next(c for c in ts.commands if c.name == "передача")
+    assert {c.name for c in e_sub.commands} == {"добавить", "удалить", "очистить"}
+    ok("/тикет-настройка: вопросы, роли, передача, баннер")
 
     asg = bot.tree.get_command("заявки-настройка")
     assert asg is not None and asg.get_command("вопрос") is not None
-    ok("/заявки-настройка: список + подгруппа «вопрос»")
+    asg_subs = {c.name for c in asg.commands}
+    assert {"список", "баннер"} <= asg_subs, asg_subs
+    ok("/заявки-настройка: список, баннер + подгруппа «вопрос»")
 
     tx = bot.tree.get_command("тексты")
     assert tx is not None
@@ -93,10 +98,24 @@ async def main():
 
     # ── 5. Хранилище типов тикетов ───────────────────────────────────────
     types = await forms.load_types()
-    assert set(types.keys()) == {"поддержка", "тех-поддержка"}, types.keys()
+    assert set(types.keys()) == {"поддержка", "тех-поддержка", "жалоба-игрок", "жалоба-персонал"}, types.keys()
     assert types["поддержка"]["prefix"] == "support"
     assert len(types["поддержка"]["questions"]) == 1
-    ok("load_types: стандартные типы с латинскими префиксами")
+    assert types["жалоба-игрок"]["prefix"] == "report-player"
+    assert types["жалоба-персонал"]["prefix"] == "report-staff"
+    assert len(types["жалоба-игрок"]["questions"]) == 3  # ник + описание + доказательства
+    assert "escalate_roles" in types["жалоба-игрок"] and "banner" in types["жалоба-игрок"]
+    ok("load_types: помощь, тех-поддержка + готовые типы «Жалобы»")
+
+    # миграция одноразовая: удалённый вручную тип жалобы не воскресает сам
+    del types["жалоба-игрок"]
+    await forms.save_types(types)
+    assert "жалоба-игрок" not in await forms.load_types()
+    types = await forms.load_types()
+    types["жалоба-игрок"] = forms.default_ticket_types()["жалоба-игрок"]
+    await forms.save_types(types)
+    assert "жалоба-игрок" in await forms.load_types()
+    ok("Миграция жалоб: одноразовая, удалённый тип не восстанавливается сам")
 
     assert forms.slugify("Тех Поддержка!") == "teh-podderzhka"
     assert forms.slugify("Жалоба на игрока") == "zhaloba-na-igroka"
@@ -111,9 +130,10 @@ async def main():
 
     # добавление/удаление типа через то же хранилище, что использует ког
     types["report"] = {
-        "label": "🚨 Жалоба", "description": "на игрока", "emoji": "🚨",
+        "label": "🚨 Своя жалоба", "description": "на игрока", "emoji": "🚨",
         "color": 0xED4245, "prefix": "zhaloba", "ping_roles": [],
-        "category_id": None,
+        "escalate_roles": [123], "category_id": None,
+        "banner": "https://example.com/b.png",
         "questions": [forms.make_question("На кого жалоба?", "Ник игрока"),
                       forms.make_question("Что случилось?", "Подробности", True, True, 2000)],
     }
@@ -121,6 +141,17 @@ async def main():
     types2 = await forms.load_types()
     assert "report" in types2 and len(types2["report"]["questions"]) == 2
     ok("CRUD типов тикетов через хранилище")
+
+    # ── 5b. Настройки направлений заявок (баннер) ────────────────────────
+    st = await forms.load_app_settings()
+    assert set(st.keys()) == set(forms.APP_TYPE_IDS)
+    st["персонал"]["banner"] = "https://example.com/app.png"
+    await forms.save_app_settings(st)
+    st2 = forms.app_settings_sync("персонал")
+    assert st2["banner"].endswith("app.png")
+    st3 = forms.app_settings_sync("дс-адм")
+    assert isinstance(st3.get("banner"), str)  # дефолты для остальных
+    ok("app_settings: баннер направлений сохраняется и читается")
 
     # ── 6. Вопросы заявок ─────────────────────────────────────────────────
     qs = await forms.load_app_questions()
@@ -133,10 +164,12 @@ async def main():
 
     # ── 7. Модалки и вьюхи строятся из настроек ───────────────────────────
     from cogs.tickets import (
-        TicketModal, TicketCloseView, TicketPanelView, TicketTypeSelectView,
-        build_panel_embed, build_type_options, is_ticket_channel,
+        TicketModal, TicketControlView, TicketPanelView, TicketTypeSelectView,
+        build_panel_embed, build_type_options, is_ticket_channel, type_banner,
     )
-    from cogs.applications import ApplicationModal, AdminApproveView, ApplicationView
+    from cogs.applications import (
+        ApplicationModal, AdminApproveView, ApplicationView,
+    )
 
     modal = TicketModal("report", types2["report"])
     assert len(modal.children) == 2, "форма не собрала 2 вопроса"
@@ -155,7 +188,8 @@ async def main():
     ok("ApplicationModal строится из /заявки-настройка")
 
     options = build_type_options(types2)
-    assert len(options) == 3 and options[0].value == "поддержка"
+    # типы: поддержка, тех-поддержка, жалоба-персонал, жалоба-игрок, report
+    assert len(options) == 5 and options[0].value == "поддержка"
     select_view = TicketTypeSelectView(options)
     assert len(select_view.children) == 1
     ok("Панель тикетов: select из динамических типов")
@@ -171,12 +205,48 @@ async def main():
     await database.db.delete("text_overrides.TICKET_BTN_LABEL")
     ok("Кнопка панели берёт текст из /тексты без перезапуска")
 
-    close_view = TicketCloseView()
+    control_view = TicketControlView()
+    custom_ids = {getattr(c, "custom_id", None) for c in control_view.children}
+    assert {"ticket_close_btn", "ticket_forward_btn"} <= custom_ids
+    fwd_btn = next(c for c in control_view.children if c.custom_id == "ticket_forward_btn")
+    assert fwd_btn.label == T.TICKET_FORWARD_BTN
+    ok("TicketControlView: кнопки «Закрыть» + «Передать» (текст из /тексты)")
+
+    # 🔒 Закрытие/передача — только для персонала (игрок не может закрыть свой тикет)
+    from cogs.tickets import _is_staff
+
+    class _Perms:
+        def __init__(self, mc=False, adm=False):
+            self.manage_channels = mc
+            self.administrator = adm
+
+    class _Role:
+        def __init__(self, rid):
+            self.id = rid
+
+    class _Member:
+        def __init__(self, perms, roles):
+            self.guild_permissions = perms
+            self.roles = roles
+
+    player = _Member(_Perms(), [_Role(999)])          # обычный игрок
+    pinged = _Member(_Perms(), [_Role(123)])          # роль из ping_roles
+    senior = _Member(_Perms(), [_Role(456)])          # роль из escalate_roles
+    admin  = _Member(_Perms(adm=True), [])
+    tcfg   = {"ping_roles": [123], "escalate_roles": [456]}
+    assert not _is_staff(player, tcfg), "игрок НЕ должен проходить проверку"
+    assert not _is_staff(player, {}), "игрок НЕ должен проходить даже без настроек"
+    assert _is_staff(pinged, tcfg) and _is_staff(senior, tcfg) and _is_staff(admin, {})
+    ok("_is_staff: игрок отклонён; роли пинга/передачи и админы — допущены")
+
+    assert type_banner(types2["report"]) == "https://example.com/b.png"
+    assert type_banner(types2["поддержка"]) == ""
+
     approve_view = AdminApproveView()
     app_view = ApplicationView()
     em = build_panel_embed()
     assert em.title == T.TICKET_PANEL_TITLE
-    ok("CloseView/ApproveView/PanelView/Embed собираются")
+    ok("ApproveView/PanelView/Embed собираются")
 
     # ── 8. Определение каналов тикетов ────────────────────────────────────
     class FakeCh:

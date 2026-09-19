@@ -1,8 +1,14 @@
 """
 📩 СИСТЕМА ТИКЕТОВ
 - Типы обращений и формы настраиваются через /тикет-настройка (data.json)
+  (помощь, тех-поддержка, жалобы на игроков и персонал + свои типы)
 - Название канала: префикс-ник (латиница — требование Discord)
 - Пинг ролей типа при создании
+- 🖼️ Баннер внутри тикета: /тикет-настройка баннер <код> <url>
+- 🔁 Кнопка «Передать»: пингует старшие роли и пускает их в канал
+  (/тикет-настройка передача …), текст кнопки — через /тексты (TICKET_FORWARD_BTN)
+- 🔒 Кнопки «Закрыть» и «Передать» — только для персонала
+  (игрок НЕ может закрыть/передать свой тикет; текст отказа: TICKET_STAFF_ONLY)
 - Кулдаун на создание тикетов
 - Причина при закрытии → ЛС автору + логи + транскрипт
 - Панель (/setup-tickets) обновляется автоматически при изменении настроек
@@ -26,6 +32,20 @@ def is_ticket_channel(channel) -> bool:
     name = getattr(channel, "name", "") or ""
     name = name.lower()
     return any(name.startswith(p) for p in ticket_prefixes_sync())
+
+
+def type_banner(type_cfg: dict) -> str:
+    """URL баннера внутри тикета для этого типа ("" = без баннера)."""
+    return str(type_cfg.get("banner") or "").strip()
+
+
+def _is_staff(user: discord.Member, type_cfg: dict) -> bool:
+    """Может ли пользователь пользоваться служебными кнопками тикета."""
+    if user.guild_permissions.manage_channels or user.guild_permissions.administrator:
+        return True
+    allowed = {int(r) for r in (type_cfg.get("ping_roles") or []) if r}
+    allowed |= {int(r) for r in (type_cfg.get("escalate_roles") or []) if r}
+    return any(r.id in allowed for r in getattr(user, "roles", []))
 
 
 def build_type_options(types: dict) -> list[discord.SelectOption]:
@@ -102,97 +122,217 @@ class TicketCloseModal(discord.ui.Modal):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(T.TICKET_CLOSE_PROGRESS, ephemeral=True)
-        channel = interaction.channel
-        guild   = interaction.guild
-        reason  = self.reason.value
+        # 🔒 Контрольная проверка прав — игрок не может закрыть свой тикет
+        #    (даже если дошёл до формы через /ticket close)
+        channel  = interaction.channel
+        meta     = await db.get(f"tickets.{channel.id}", {})
+        type_id  = meta.get("type") if isinstance(meta, dict) else None
+        type_cfg = (await load_types()).get(type_id, {}) if type_id else {}
+        if is_ticket_channel(channel) and not _is_staff(interaction.user, type_cfg):
+            await interaction.response.send_message(T.TICKET_STAFF_ONLY, ephemeral=True)
+            return
 
-        # Кто открыл тикет: сначала из БД, затем старый способ (поиск пинга)
-        meta      = await db.get(f"tickets.{channel.id}", {})
-        opener_id = meta.get("opener") if isinstance(meta, dict) else None
-        opener_user = None
-        if opener_id:
-            opener_user = guild.get_member(int(opener_id))
-            if opener_user is None:
+        await interaction.response.send_message(T.TICKET_CLOSE_PROGRESS, ephemeral=True)
+        guild  = interaction.guild
+        reason = self.reason.value
+
+        # ── Всё, что "не критично", делаем в защищённых шагах: сбой любого
+        #    из них НЕ должен мешать удалению канала ──
+        opener_user = await self._find_opener(interaction, channel, guild)
+        await self._dm_opener(interaction, channel, guild, opener_user, reason)
+        await self._send_logs(interaction, channel, guild, opener_user, reason)
+        await self._record_staff(interaction, guild, reason)
+
+        # ── Главное: очистить БД и УДАЛИТЬ канал — в любом случае ──
+        try:
+            await db.delete(f"tickets.{channel.id}")
+        except Exception as e:
+            print(f"[Tickets] Не удалось очистить БД тикета: {e}")
+
+        try:
+            await channel.delete(reason=f"Тикет закрыт ({interaction.user}): {reason[:100]}")
+        except discord.Forbidden:
+            # Самая частая причина: у бота нет серверного права «Управление каналами»
+            await interaction.followup.send(
+                "⚠️ Тикет обработан (ЛС и логи отправлены), но **удалить канал не удалось**: "
+                "у бота нет права **«Управление каналами»**.\n"
+                "🔧 Зайди в *Настройки сервера → Роли → роль бота* и включи это право "
+                "(или выдай боту «Администратор»), затем удали канал вручную.",
+                ephemeral=True,
+            )
+        except discord.HTTPException as e:
+            await interaction.followup.send(
+                f"❌ Не удалось удалить канал: `{e}`. Удали его вручную.",
+                ephemeral=True,
+            )
+
+    # ── вспомогательные шаги (все безопасны: ошибки только в консоль) ──
+    async def _find_opener(self, interaction, channel, guild):
+        """Кто открыл тикет: из БД, иначе старый способ (поиск пинга)."""
+        try:
+            meta      = await db.get(f"tickets.{channel.id}", {})
+            opener_id = meta.get("opener") if isinstance(meta, dict) else None
+            if opener_id:
+                member = guild.get_member(int(opener_id))
+                if member is not None:
+                    return member
                 try:
-                    opener_user = await interaction.client.fetch_user(int(opener_id))
+                    return await interaction.client.fetch_user(int(opener_id))
                 except discord.HTTPException:
-                    opener_user = None
-        if opener_user is None:
+                    pass
             async for msg in channel.history(limit=20, oldest_first=True):
                 if msg.author == guild.me and msg.mentions:
-                    opener_user = msg.mentions[0]
-                    break
+                    return msg.mentions[0]
+        except Exception as e:
+            print(f"[Tickets] Не удалось определить автора тикета: {e}")
+        return None
 
-        # ЛС автору тикета
-        if opener_user:
-            try:
-                em = discord.Embed(
-                    title=T.TICKET_CLOSED_DM_TITLE,
-                    description=T.TICKET_CLOSED_DM_DESC.format(name=channel.name, guild=guild.name),
-                    color=discord.Color.orange(), timestamp=discord.utils.utcnow(),
-                )
-                em.add_field(name=T.TICKET_CLOSED_DM_REASON, value=f"```{clean_codeblock(reason, 200)}```")
-                em.set_footer(text=T.TICKET_CLOSED_DM_FOOTER.format(mod=interaction.user.name))
-                await opener_user.send(embed=em)
-            except discord.Forbidden:
-                pass
+    async def _dm_opener(self, interaction, channel, guild, opener_user, reason):
+        """ЛС автору тикета о закрытии (не мешает закрытию при сбое)."""
+        if not opener_user:
+            return
+        try:
+            em = discord.Embed(
+                title=str(T.TICKET_CLOSED_DM_TITLE),
+                description=str(T.TICKET_CLOSED_DM_DESC).format(name=channel.name, guild=guild.name),
+                color=discord.Color.orange(), timestamp=discord.utils.utcnow(),
+            )
+            em.add_field(name=str(T.TICKET_CLOSED_DM_REASON)[:256],
+                         value=f"```{clean_codeblock(reason, 200)}```")
+            em.set_footer(text=str(T.TICKET_CLOSED_DM_FOOTER).format(mod=interaction.user.name))
+            await opener_user.send(embed=em)
+        except discord.Forbidden:
+            pass  # ЛС закрыты — ничего страшного
+        except Exception as e:
+            print(f"[Tickets] ЛС автору тикета не отправлено: {e}")
 
-        # Транскрипт + логи
-        transcript = await create_transcript(channel)
-        log_fields = (
-            (T.TICKET_LOG_F_CHANNEL, f"`#{channel.name}`", True),
-            (T.TICKET_LOG_F_OPENER,  opener_user.mention if opener_user else "—", True),
-            (T.TICKET_LOG_F_CLOSER,  interaction.user.mention, True),
-            (T.TICKET_LOG_F_REASON,  f"```{clean_codeblock(reason, 200)}```", False),
-        )
-        log_ch = guild.get_channel(BotConfig.LOG_CHANNEL_1_ID)
-        if log_ch:
-            log_em = discord.Embed(title=T.TICKET_LOG_TITLE, color=discord.Color.red(),
-                                   timestamp=discord.utils.utcnow())
-            for name, value, inline in log_fields:
-                log_em.add_field(name=str(name)[:256], value=value, inline=inline)
-            try:
-                await log_ch.send(embed=log_em, file=transcript)
-            except discord.HTTPException:
-                pass
+    async def _send_logs(self, interaction, channel, guild, opener_user, reason):
+        """Транскрипт + сообщения в каналы логов (не мешает закрытию при сбое)."""
+        transcript = None
+        try:
+            transcript = await create_transcript(channel)
+        except Exception as e:
+            print(f"[Tickets] Не удалось создать транскрипт: {e}")
+        try:
+            log_fields = (
+                (T.TICKET_LOG_F_CHANNEL, f"`#{channel.name}`", True),
+                (T.TICKET_LOG_F_OPENER,  opener_user.mention if opener_user else "—", True),
+                (T.TICKET_LOG_F_CLOSER,  interaction.user.mention, True),
+                (T.TICKET_LOG_F_REASON,  f"```{clean_codeblock(reason, 200)}```", False),
+            )
+            for ch_id, with_file in ((BotConfig.LOG_CHANNEL_1_ID, True),
+                                     (BotConfig.LOG_CHANNEL_2_ID, False)):
+                log_ch = guild.get_channel(ch_id)
+                if not log_ch:
+                    continue
+                log_em = discord.Embed(title=str(T.TICKET_LOG_TITLE)[:256],
+                                       color=discord.Color.red(),
+                                       timestamp=discord.utils.utcnow())
+                for name, value, inline in log_fields:
+                    log_em.add_field(name=str(name)[:256], value=value, inline=inline)
+                try:
+                    if with_file and transcript is not None:
+                        await log_ch.send(embed=log_em, file=transcript)
+                    else:
+                        await log_ch.send(embed=log_em)
+                except discord.HTTPException as e:
+                    print(f"[Tickets] Лог в #{log_ch.name} не отправлен: {e}")
+        except Exception as e:
+            print(f"[Tickets] Ошибка логирования тикета: {e}")
 
-        log_ch2 = guild.get_channel(BotConfig.LOG_CHANNEL_2_ID)
-        if log_ch2 and log_ch2 != log_ch:
-            log_em2 = discord.Embed(title=T.TICKET_LOG_TITLE, color=discord.Color.red(),
-                                    timestamp=discord.utils.utcnow())
-            for name, value, inline in log_fields:
-                log_em2.add_field(name=str(name)[:256], value=value, inline=inline)
-            try:
-                await log_ch2.send(embed=log_em2)
-            except discord.HTTPException:
-                pass
-
-        # Учёт в статистике персонала
+    async def _record_staff(self, interaction, guild, reason):
+        """Учёт в статистике персонала (не мешает закрытию при сбое)."""
         try:
             from utils.staff_tracker import record_ticket_closed
             await record_ticket_closed(
                 guild_id=guild.id,
                 staff_id=interaction.user.id,
-                channel_name=channel.name,
+                channel_name=interaction.channel.name,
                 reason=reason,
             )
         except Exception as e:
             print(f"[StaffStats] Ошибка учёта тикета: {e}")
 
-        await db.delete(f"tickets.{channel.id}")
-        await channel.delete()
 
+class TicketControlView(discord.ui.View):
+    """Постоянные кнопки внутри тикета: «Закрыть» и «Передать» (эскалация)."""
 
-class TicketCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         set_child_label(self, "ticket_close_btn", T.TICKET_CLOSE_BTN)
+        set_child_label(self, "ticket_forward_btn", T.TICKET_FORWARD_BTN)
 
     @discord.ui.button(label="Закрыть тикет", style=discord.ButtonStyle.danger,
-                       emoji="🔒", custom_id="ticket_close_btn")
+                       emoji="🔒", custom_id="ticket_close_btn", row=0)
     async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Закрывать тикет может только персонал — игрок закрыть свой тикет не может.
+        channel  = interaction.channel
+        meta     = await db.get(f"tickets.{channel.id}", {})
+        type_id  = meta.get("type") if isinstance(meta, dict) else None
+        type_cfg = (await load_types()).get(type_id, {}) if type_id else {}
+        if is_ticket_channel(channel) and not _is_staff(interaction.user, type_cfg):
+            await interaction.response.send_message(T.TICKET_STAFF_ONLY, ephemeral=True)
+            return
         await interaction.response.send_modal(TicketCloseModal())
+
+    @discord.ui.button(label="Передать тикет", style=discord.ButtonStyle.secondary,
+                       emoji="🔁", custom_id="ticket_forward_btn", row=0)
+    async def forward_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Передача тикета старшему составу: пингует escalate_roles и пускает их в канал."""
+        channel = interaction.channel
+        guild   = interaction.guild
+
+        meta     = await db.get(f"tickets.{channel.id}", {})
+        type_id  = meta.get("type") if isinstance(meta, dict) else None
+        type_cfg = (await load_types()).get(type_id, {}) if type_id else {}
+
+        if not type_id or not is_ticket_channel(channel):
+            await interaction.response.send_message(T.TICKET_ONLY_IN_TICKET, ephemeral=True)
+            return
+
+        if not _is_staff(interaction.user, type_cfg):
+            await interaction.response.send_message(T.TICKET_STAFF_ONLY, ephemeral=True)
+            return
+
+        escalate = [r for r in (type_cfg.get("escalate_roles") or []) if r]
+        if not escalate:
+            await interaction.response.send_message(T.TICKET_FORWARD_NO_ROLES, ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Выдаём старшим ролям доступ в канал
+        granted = []
+        for rid in escalate:
+            role = guild.get_role(rid)
+            if role:
+                try:
+                    await channel.set_permissions(role, read_messages=True, send_messages=True)
+                    granted.append(role)
+                except discord.HTTPException:
+                    pass
+        pings = " ".join(r.mention for r in granted) or "—"
+
+        em = discord.Embed(
+            title=str(T.TICKET_FORWARDED_TITLE)[:256],
+            description=str(T.TICKET_FORWARDED_DESC).format(
+                user=interaction.user.mention, roles=pings)[:4096],
+            color=type_cfg.get("color") or 0x5865F2,
+            timestamp=discord.utils.utcnow(),
+        )
+        banner = type_banner(type_cfg)
+        if banner:
+            em.set_image(url=banner)
+        await channel.send(content=pings, embed=em, view=TicketControlView())
+
+        meta = dict(meta if isinstance(meta, dict) else {})
+        meta.update({
+            "forwarded": True,
+            "forwarded_by": interaction.user.id,
+            "forwarded_at": int(datetime.datetime.utcnow().timestamp()),
+        })
+        await db.set(f"tickets.{channel.id}", meta)
+        await interaction.followup.send(T.TICKET_FORWARD_OK.format(roles=pings), ephemeral=True)
 
 
 # ─── СОЗДАНИЕ (ФОРМА) ────────────────────────────────────────────────────────
@@ -250,6 +390,7 @@ class TicketModal(discord.ui.Modal):
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            # игрок может сам кидать фото/видео прямо в канал тикета
             user:               discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
             guild.me:           discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
         }
@@ -272,13 +413,17 @@ class TicketModal(discord.ui.Modal):
             await interaction.followup.send(T.TICKET_CREATE_ERROR, ephemeral=True)
             return
 
-        # Первый embed в канале: тип + ответы из формы
+        # Первый embed в канале: тип + ответы из формы + баннер
         ping_str = mentions_from_ids(guild, ping_roles)
         inner_em = discord.Embed(
             title=T.TICKET_INNER_TITLE,
             description=T.TICKET_INNER_DESC.format(type=type_cfg.get("label", self.type_id)),
             color=type_cfg.get("color") or 0x5865F2,
             timestamp=discord.utils.utcnow(),
+        )
+        inner_em.set_author(
+            name=f"{user.display_name} • {user.name}",
+            icon_url=user.display_avatar.url,
         )
         for q, ti in self.inputs:
             value = (ti.value or "").strip()
@@ -289,10 +434,14 @@ class TicketModal(discord.ui.Modal):
                 value=f"```{clean_codeblock(value, 900)}```",
                 inline=False,
             )
-        inner_em.set_footer(text=T.TICKET_CREATED_FOOTER.format(name=user.name))
+        # 🖼️ Баннер внутри тикета (настраивается: /тикет-настройка баннер)
+        banner = type_banner(type_cfg)
+        if banner:
+            inner_em.set_image(url=banner)
+        inner_em.set_footer(text=T.TICKET_CREATED_FOOTER.format(name=user.name, id=user.id))
 
         content = f"{user.mention} {ping_str}".strip()
-        await channel.send(content=content, embed=inner_em, view=TicketCloseView())
+        await channel.send(content=content, embed=inner_em, view=TicketControlView())
 
         await db.set(f"tickets.{channel.id}", {
             "opener": user.id, "type": self.type_id, "created": int(now_ts),
@@ -394,4 +543,4 @@ class TicketsCog(commands.Cog):
 async def setup(bot):
     await bot.add_cog(TicketsCog(bot))
     bot.add_view(TicketPanelView())
-    bot.add_view(TicketCloseView())
+    bot.add_view(TicketControlView())
