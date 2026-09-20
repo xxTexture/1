@@ -21,6 +21,10 @@ from utils.forms import (
     make_question, parse_color, save_app_questions, save_app_settings, save_types,
     slugify, valid_slug,
 )
+try:  # новая константа (utils/forms.py из обновления); fallback — то же значение
+    from utils.forms import MAX_APP_QUESTIONS
+except ImportError:
+    MAX_APP_QUESTIONS = 10
 from cogs.applications import app_label
 
 ADMIN_PERMS = discord.Permissions(administrator=True)
@@ -476,13 +480,17 @@ class FormsSetupCog(commands.Cog):
         qs_all = await load_app_questions()
         st_all = await load_app_settings()
         ids = [направление] if направление else list(APP_TYPE_IDS)
-        em = discord.Embed(title="📋 Настройки анкет", color=BotConfig.APP_COLOR)
+        em = discord.Embed(
+            title="📋 Настройки анкет",
+            description=f"Вопросов в анкете: до **{MAX_APP_QUESTIONS}** (6+ → форма в 2 окна)",
+            color=BotConfig.APP_COLOR,
+        )
         for aid in ids:
             st = st_all.get(aid, {})
             qs = qs_all.get(aid, [])
             lines = [
                 f"🖼️ Баннер: {'есть' if str(st.get('banner') or '').strip() else '—'}",
-                "**Вопросы:**",
+                f"**Вопросы ({len(qs)}/{MAX_APP_QUESTIONS}):**",
                 *(
                     f"{i + 1}. **{q.get('label', '?')}** "
                     f"({'обяз.' if q.get('required', True) else 'необяз.'}, "
@@ -494,6 +502,10 @@ class FormsSetupCog(commands.Cog):
                 "*Вопросы не настроены — будет стандартный*",
             ]
             em.add_field(name=app_label(aid), value="\n".join(lines)[:1024], inline=False)
+        # Заодно обновляем панели (старые со списком станут нового вида с кнопкой)
+        updated = await self._refresh_app_panels()
+        if updated:
+            em.set_footer(text=f"🔄 Обновлённых панелей: {updated}")
         await interaction.response.send_message(embed=em, ephemeral=True)
 
     @asg.command(name="баннер", description="🖼️ Картинка-баннер ВНУТРИ анкеты заявки")
@@ -514,8 +526,10 @@ class FormsSetupCog(commands.Cog):
         st = await load_app_settings()
         st.setdefault(направление, {})["banner"] = url
         await save_app_settings(st)
+        updated = await self._refresh_app_panels()
         await interaction.response.send_message(
-            f"🖼️ Баннер анкеты «{направление}»: " + (f"установлен ✅\n{url}" if url else "убран."),
+            f"🖼️ Баннер анкеты «{направление}»: " + (f"установлен ✅\n{url}" if url else "убран.")
+            + (f"\n🔄 Обновлённых панелей: {updated}" if updated else ""),
             ephemeral=True,
         )
 
@@ -537,21 +551,26 @@ class FormsSetupCog(commands.Cog):
                         макс_символов: app_commands.Range[int, 100, 4000] = 1000):
         qs_all = await load_app_questions()
         qs = qs_all.get(направление, [])
-        if len(qs) >= MAX_QUESTIONS:
+        if len(qs) >= MAX_APP_QUESTIONS:
             await interaction.response.send_message(
-                f"❌ Максимум {MAX_QUESTIONS} вопросов в анкете (лимит Discord).", ephemeral=True)
+                f"❌ Максимум {MAX_APP_QUESTIONS} вопросов в анкете.", ephemeral=True)
             return
         qs.append(make_question(вопрос, подсказка or "", обязательный, многострочный, макс_символов))
         qs_all[направление] = qs
         await save_app_questions(qs_all)
+        updated = await self._refresh_app_panels()
+        note = "\n💡 Анкета из 6+ вопросов показывается игроку в 2 окна." if len(qs) > 5 else ""
         await interaction.response.send_message(
-            f"✅ Вопрос **{len(qs)}. {вопрос[:45]}** добавлен в анкету «{направление}».", ephemeral=True)
+            f"✅ Вопрос **{len(qs)}. {вопрос[:45]}** добавлен в анкету «{направление}»."
+            + note
+            + (f"\n🔄 Обновлённых панелей: {updated}" if updated else ""),
+            ephemeral=True)
 
     @asg_q.command(name="удалить", description="🗑️ Удалить вопрос анкеты по номеру")
     @app_commands.describe(направление="Направление", номер="Номер вопроса (см. /заявки-настройка список)")
     @app_commands.choices(направление=APP_CHOICES)
     async def asg_q_remove(self, interaction: discord.Interaction, направление: str,
-                           номер: app_commands.Range[int, 1, 5]):
+                           номер: app_commands.Range[int, 1, 10]):
         qs_all = await load_app_questions()
         qs = qs_all.get(направление, [])
         if номер > len(qs):
@@ -561,8 +580,11 @@ class FormsSetupCog(commands.Cog):
         removed = qs.pop(номер - 1)
         qs_all[направление] = qs
         await save_app_questions(qs_all)
+        updated = await self._refresh_app_panels()
         await interaction.response.send_message(
-            f"✅ Вопрос «{removed.get('label', '?')}» удалён из анкеты «{направление}».", ephemeral=True)
+            f"✅ Вопрос «{removed.get('label', '?')}» удалён из анкеты «{направление}»."
+            + (f" Обновлённых панелей: {updated}" if updated else ""),
+            ephemeral=True)
 
     # ─── служебное ───
     async def _refresh_panels(self) -> int:
@@ -572,6 +594,15 @@ class FormsSetupCog(commands.Cog):
             return await refresh_ticket_panels(self.bot)
         except Exception as e:
             print(f"[FormsSetup] Не удалось обновить панели: {e}")
+            return 0
+
+    async def _refresh_app_panels(self) -> int:
+        """Обновляет панели заявок после изменений."""
+        try:
+            from cogs.applications import refresh_app_panels
+            return await refresh_app_panels(self.bot)
+        except Exception as e:
+            print(f"[FormsSetup] Не удалось обновить панели заявок: {e}")
             return 0
 
 

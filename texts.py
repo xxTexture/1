@@ -22,7 +22,7 @@ from database import db
 TEXT_LIMITS = {
     # Кнопки (лимит Discord — 80 символов)
     "TICKET_BTN_LABEL": 80, "TICKET_CLOSE_BTN": 80, "TICKET_FORWARD_BTN": 80,
-    "APP_ACCEPT_BTN": 80, "APP_REJECT_BTN": 80,
+    "APP_ACCEPT_BTN": 80, "APP_REJECT_BTN": 80, "APP_BTN_LABEL": 80,
     # Плейсхолдеры выпадающих списков (лимит — 100)
     "TICKET_SELECT_PH": 100, "APP_SELECT_PH": 100,
     # Пункты выпадающих списков (label/description — по 100)
@@ -40,7 +40,7 @@ TEXT_LIMITS = {
     "APP_Q1_LABEL": 45, "APP_Q1_PH": 100, "APP_Q2_LABEL": 45,
     "APP_REJECT_REASON_LABEL": 45, "APP_REJECT_REASON_PH": 100,
     # Эмодзи кнопок
-    "TICKET_BTN_EMOJI": 64,
+    "TICKET_BTN_EMOJI": 64, "APP_BTN_EMOJI": 64,
 }
 
 # Короткие префиксы ключей → категория (для /тексты список)
@@ -132,12 +132,15 @@ class TextDefaults:
         "🛡️ **Персонал** — модерация серверов и помощь игрокам.\n"
         "⚙️ **ДС-Админ** — настройка и управление Discord-сервером.\n"
         "🔨 **Билдеры** — строительство красивых карт и спавнов.\n\n"
-        "*Выберите нужное направление в выпадающем меню ниже.*"
+        "*Нажмите кнопку ниже и выберите направление.*"
     )
+    APP_BTN_LABEL   = "Подать заявку"
+    APP_BTN_EMOJI   = "📋"
+    APP_TYPE_SELECT_PROMPT = "Выберите направление:"
     APP_SELECT_PH = "Выберите направление..."
     APP_TYPE_STAFF   = "🛡️ Персонал"
     APP_TYPE_DS      = "⚙️ ДС-Адм"
-    APP_TYPE_Builder = "🔨 Билдеры"
+    APP_TYPE_BUILDER = "🔨 Билдеры"
     APP_TYPE_STAFF_DESC   = "Модерация и помощь игрокам"
     APP_TYPE_DS_DESC      = "Управление Discord-сервером"
     APP_TYPE_BUILDER_DESC = "Строительство карт и спавнов"

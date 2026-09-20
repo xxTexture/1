@@ -14,7 +14,10 @@ import tempfile
 
 BOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK_DIR = tempfile.mkdtemp(prefix="bot_test_")
-os.chdir(WORK_DIR)          # свежий data.json во временной папке
+os.chdir(WORK_DIR)
+# Тестовая БД — во временной папке (обязательно ДО импорта database,
+# т.к. database.py берет путь из BOT_DATA_FILE при импорте)
+os.environ["BOT_DATA_FILE"] = os.path.join(WORK_DIR, "data.json")
 sys.path.insert(0, BOT_DIR)
 
 PASSED = []

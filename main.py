@@ -28,6 +28,7 @@ COGS = [
     "cogs.welcome",
     "cogs.cmd_logger",
     "cogs.server_logs",
+    "cogs.msg_logger",
     "cogs.staff_stats",
 ]
 

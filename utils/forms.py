@@ -29,8 +29,11 @@ import re
 from config import BotConfig
 from database import db
 
-MAX_QUESTIONS = 5     # лимит Discord: не больше 5 полей в модальном окне
-MAX_TYPES     = 25    # лимит Discord: не больше 25 пунктов в выпадающем списке
+MAX_QUESTIONS = 5         # лимит Discord: не больше 5 полей в ОДНОМ модальном окне
+MODAL_PAGE_SIZE = 5       # вопросов на одну страницу (окно) формы
+MAX_APP_QUESTIONS = 10    # максимум вопросов в анкете ЗАЯВКИ (6–10 → форма в 2 окна)
+MAX_TYPES     = 25        # лимит Discord: не больше 25 пунктов в выпадающем списке
+# У тикетов лимит остался 5 (одно окно): см. MAX_QUESTIONS.
 
 APP_TYPE_IDS = ("персонал", "дс-адм", "билдеры")
 

@@ -1,16 +1,20 @@
 """
 📋 СИСТЕМА ЗАЯВОК В КОМАНДУ
 - Направления: Персонал / ДС-Адм / Билдеры
-- Вопросы анкеты настраиваются через /заявки-настройка (до 5 вопросов)
+- Вопросы анкеты настраиваются через /заявки-настройка (до 10 вопросов;
+  анкеты из 6+ вопросов показываются в 2 окна — лимит Discord 5 полей на окно)
+- Панель как в тикетах: кнопка «Подать заявку» → меню направлений → анкета
+  (текст кнопки: APP_BTN_LABEL / APP_BTN_EMOJI через /тексты)
 - 🖼️ Баннер внутри анкеты: /заявки-настройка баннер <направление> <url>
 - Причина при отклонении → в канал + ЛС; при принятии → ЛС (тексты через /тексты)
-- Кулдаун на заявки
+- Кулдаун на заявки (проверяется до открытия анкеты)
 - Пинг ролей + пинг игрока в сообщении
 - Панель (/setup-applications) обновляется автоматически при изменении настроек
 """
 
 import datetime
 import re
+import secrets
 
 import discord
 from discord import app_commands
@@ -20,25 +24,57 @@ from config import BotConfig
 from database import db
 from texts import T
 from utils.forms import (
-    APP_TYPE_IDS, MAX_QUESTIONS, app_questions_sync, app_settings_sync, make_question,
+    APP_TYPE_IDS, app_questions_sync, app_settings_sync, make_question,
 )
+try:  # новые константы (utils/forms.py из обновления); fallback — те же значения
+    from utils.forms import MAX_APP_QUESTIONS, MODAL_PAGE_SIZE
+except ImportError:
+    MAX_APP_QUESTIONS = 10
+    MODAL_PAGE_SIZE = 5
 from utils.helpers import clean_codeblock, mentions_from_ids, set_child_label
+
+
+def _txt(name: str, default: str) -> str:
+    """Текст из /тексты с запасным значением (если texts.py ещё не обновлён)."""
+    try:
+        return str(getattr(T, name))
+    except AttributeError:
+        return default
 
 # Статическая часть направлений (канал/пинги/цвет). Названия и описания —
 # в texts.py (APP_TYPE_*), вопросы — в /заявки-настройка.
 APP_TYPES = {
     "персонал": {"label_key": "APP_TYPE_STAFF",   "desc_key": "APP_TYPE_STAFF_DESC",   "channel": BotConfig.APP_CH_STAFF,    "ping_ids": BotConfig.STAFF_PING_ROLES,    "color": 0x3498DB},
     "дс-адм":  {"label_key": "APP_TYPE_DS",       "desc_key": "APP_TYPE_DS_DESC",      "channel": BotConfig.APP_CH_DS_ADMIN, "ping_ids": BotConfig.DS_ADMIN_PING_ROLES, "color": 0x9B59B6},
-    "билдеры": {"label_key": "APP_TYPE_Builder",  "desc_key": "APP_TYPE_BUILDER_DESC", "channel": BotConfig.APP_CH_BUILDER,  "ping_ids": BotConfig.BUILDER_PING_ROLES,  "color": 0xE67E22},
+    "билдеры": {"label_key": "APP_TYPE_BUILDER",  "desc_key": "APP_TYPE_BUILDER_DESC", "channel": BotConfig.APP_CH_BUILDER,  "ping_ids": BotConfig.BUILDER_PING_ROLES,  "color": 0xE67E22},
 }
 
 
+# Запасные названия/описания (если texts.py ещё не обновлён)
+_APP_LABEL_FALLBACK = {"персонал": "🛡️ Персонал", "дс-адм": "⚙️ ДС-Адм", "билдеры": "🔨 Билдеры"}
+_APP_DESC_FALLBACK = {"персонал": "Модерация и помощь игрокам",
+                      "дс-адм": "Управление Discord-сервером",
+                      "билдеры": "Строительство карт и спавнов"}
+
+
 def app_label(app_type: str) -> str:
-    return str(getattr(T, APP_TYPES[app_type]["label_key"]))
+    key = APP_TYPES[app_type]["label_key"]
+    candidates = [key]
+    if key == "APP_TYPE_BUILDER":
+        candidates.append("APP_TYPE_Builder")  # старый вариант ключа из прошлых версий
+    for candidate in candidates:
+        try:
+            return str(getattr(T, candidate))
+        except AttributeError:
+            continue
+    return _APP_LABEL_FALLBACK.get(app_type, app_type)
 
 
 def app_desc(app_type: str) -> str:
-    return str(getattr(T, APP_TYPES[app_type]["desc_key"]))
+    try:
+        return str(getattr(T, APP_TYPES[app_type]["desc_key"]))
+    except AttributeError:
+        return _APP_DESC_FALLBACK.get(app_type, "")
 
 
 # ─── ПАНЕЛЬ ──────────────────────────────────────────────────────────────────
@@ -62,7 +98,7 @@ async def save_panel_message(guild_id: int, channel_id: int, message_id: int):
 
 
 async def refresh_app_panels(bot) -> int:
-    """Обновляет все сохранённые панели заявок."""
+    """Обновляет все сохранённые панели заявок (заодно переводит старые на новый вид)."""
     updated = 0
     for guild in bot.guilds:
         panels = await db.get(f"panels.apps.{guild.id}", {})
@@ -74,7 +110,7 @@ async def refresh_app_panels(bot) -> int:
                 continue
             try:
                 message = await channel.fetch_message(int(msg_id))
-                await message.edit(embed=build_app_panel_embed(), view=ApplicationView())
+                await message.edit(embed=build_app_panel_embed(), view=ApplicationPanelView())
                 updated += 1
             except discord.NotFound:
                 panels.pop(str(ch_id), None)
@@ -219,24 +255,70 @@ class AdminApproveView(discord.ui.View):
         await interaction.response.send_modal(RejectModal(interaction.message))
 
 
-# ─── АНКЕТА (ФОРМА) ──────────────────────────────────────────────────────────
-class ApplicationModal(discord.ui.Modal):
-    """Анкета направления. Вопросы берутся из /заявки-настройка."""
+# ─── КУЛДАУН ─────────────────────────────────────────────────────────────────
+async def cooldown_left(user_id: int, app_type: str) -> float:
+    """Сколько секунд осталось до конца кулдауна (<= 0 = можно подавать)."""
+    last_ts = await db.get(f"app_cd.{user_id}.{app_type}", 0)
+    return BotConfig.APPLICATION_COOLDOWN - (datetime.datetime.utcnow().timestamp() - last_ts)
 
-    def __init__(self, app_type: str):
-        title = str(T.APP_MODAL_TITLE)
+
+def cooldown_msg(remaining: float) -> str:
+    h = int(remaining // 3600); m = int((remaining % 3600) // 60)
+    return T.APP_CD_MSG.format(h=h, m=m)
+
+
+def answer_budget(n_answers: int) -> int:
+    """Символов на один ответ так, чтобы embed влез в лимит Discord (6000)."""
+    return min(900, max(200, 5000 // max(1, n_answers)))
+
+
+# ─── АНКЕТА (ФОРМА, ДО 10 ВОПРОСОВ = ДО 2 ОКОН) ───────────────────────────────
+class ApplicationModal(discord.ui.Modal):
+    """Анкета направления. Вопросы берутся из /заявки-настройка.
+
+    Лимит Discord — 5 полей в одном окне, поэтому анкеты из 6–10 вопросов
+    открываются в 2 окна подряд: ответы первой части подхватываются дальше.
+    """
+
+    def __init__(self, app_type: str, page: int = 0,
+                 prev_answers: list[tuple[str, str]] | None = None,
+                 user_id: int = 0, flow: str | None = None):
+        base_title = str(T.APP_MODAL_TITLE)
         try:
-            title = title.format(type=app_label(app_type))
+            base_title = base_title.format(type=app_label(app_type))
         except (KeyError, IndexError):
             pass
-        super().__init__(title=title[:45], custom_id=f"app_modal_{APP_TYPE_IDS.index(app_type)}")
+
+        questions_all = app_questions_sync(app_type)
+        if not questions_all:
+            questions_all = [make_question(T.APP_Q1_LABEL, T.APP_Q1_PH, True, False, 100)]
+        questions_all = questions_all[:MAX_APP_QUESTIONS]
+
+        total_pages = max(1, (len(questions_all) + MODAL_PAGE_SIZE - 1) // MODAL_PAGE_SIZE)
+        page = max(0, min(page, total_pages - 1))
+        page_qs = questions_all[page * MODAL_PAGE_SIZE:(page + 1) * MODAL_PAGE_SIZE]
+
+        title = base_title
+        if total_pages > 1:
+            title = f"{base_title} ({page + 1}/{total_pages})"
+
+        # Уникальный custom_id на каждую подачу: параллельные заявки разных
+        # игроков (и повторные открытия) не должны пересекаться.
+        flow = flow or secrets.token_hex(3)
+        try:
+            idx = APP_TYPE_IDS.index(app_type)
+        except ValueError:
+            idx = 0
+        super().__init__(title=title[:45], custom_id=f"appm{idx}p{page}u{user_id or 0}f{flow}")
+
         self.app_type = app_type
+        self.page = page
+        self.total_pages = total_pages
+        self.prev_answers = list(prev_answers or [])
+        self._flow = flow
         self.inputs: list[tuple[dict, discord.ui.TextInput]] = []
 
-        questions = app_questions_sync(app_type)[:MAX_QUESTIONS]
-        if not questions:
-            questions = [make_question(T.APP_Q1_LABEL, T.APP_Q1_PH, True, False, 100)]
-        for q in questions:
+        for q in page_qs:
             ti = discord.ui.TextInput(
                 label=str(q.get("label", "Вопрос"))[:45],
                 style=discord.TextStyle.paragraph if q.get("long") else discord.TextStyle.short,
@@ -248,18 +330,29 @@ class ApplicationModal(discord.ui.Modal):
             self.inputs.append((q, ti))
 
     async def on_submit(self, interaction: discord.Interaction):
+        answers = list(self.prev_answers)
+        for q, ti in self.inputs:
+            answers.append((str(q.get("label", "?")), (ti.value or "").strip()))
+
+        # Есть ещё страницы → открываем следующее окно анкеты
+        if self.page + 1 < self.total_pages:
+            await interaction.response.send_modal(ApplicationModal(
+                self.app_type, page=self.page + 1, prev_answers=answers,
+                user_id=interaction.user.id, flow=self._flow,
+            ))
+            return
+
+        await self._finish(interaction, answers)
+
+    async def _finish(self, interaction: discord.Interaction, answers: list[tuple[str, str]]):
         await interaction.response.defer(ephemeral=True)
         user  = interaction.user
         guild = interaction.guild
 
-        # Кулдаун
-        cd_key    = f"app_cd.{user.id}.{self.app_type}"
-        last_ts   = await db.get(cd_key, 0)
-        now_ts    = datetime.datetime.utcnow().timestamp()
-        remaining = BotConfig.APPLICATION_COOLDOWN - (now_ts - last_ts)
+        # Кулдаун (повторная проверка — на случай долгого заполнения анкеты)
+        remaining = await cooldown_left(user.id, self.app_type)
         if remaining > 0:
-            h = int(remaining // 3600); m = int((remaining % 3600) // 60)
-            await interaction.followup.send(T.APP_CD_MSG.format(h=h, m=m), ephemeral=True); return
+            await interaction.followup.send(cooldown_msg(remaining), ephemeral=True); return
 
         cfg    = APP_TYPES[self.app_type]
         target = guild.get_channel(cfg["channel"])
@@ -277,13 +370,12 @@ class ApplicationModal(discord.ui.Modal):
             name=T.APP_AUTHOR.format(name=user.name),
             icon_url=user.display_avatar.url,
         )
-        for q, ti in self.inputs:
-            value = (ti.value or "").strip()
-            if not value:
-                continue
+        filled = [(label, v) for label, v in answers if v]
+        per = answer_budget(len(filled))
+        for label, value in filled:
             embed.add_field(
-                name=str(q.get("label", "?"))[:256],
-                value=f"```{clean_codeblock(value, 900)}```",
+                name=label[:256],
+                value=f"```{clean_codeblock(value, per)}```",
                 inline=False,
             )
         # 🖼️ Баннер внутри анкеты (настраивается: /заявки-настройка баннер)
@@ -295,29 +387,96 @@ class ApplicationModal(discord.ui.Modal):
         ping_str = mentions_from_ids(guild, [r for r in cfg["ping_ids"] if r])
         # Пингуем и роли, и самого игрока
         content = T.APP_NEW_PING.format(pings=f"{user.mention} {ping_str}".strip())
-        await target.send(content=content, embed=embed, view=AdminApproveView())
+        try:
+            await target.send(content=content, embed=embed, view=AdminApproveView())
+        except discord.HTTPException as e:
+            print(f"[Applications] Не удалось отправить заявку: {e}")
+            await interaction.followup.send(T.APP_NO_CHANNEL, ephemeral=True); return
 
-        await db.set(cd_key, now_ts)
+        try:
+            await db.set(f"app_cd.{user.id}.{self.app_type}",
+                         datetime.datetime.utcnow().timestamp())
+        except Exception as e:
+            # Заявка уже отправлена — ошибка записи кулдауна не должна пугать игрока
+            print(f"[Applications] Не удалось сохранить кулдаун заявки: {e}")
         await interaction.followup.send(T.APP_SENT_OK, ephemeral=True)
 
 
-# ─── ВЫБОР НАПРАВЛЕНИЯ ───────────────────────────────────────────────────────
-class ApplicationView(discord.ui.View):
+# ─── ПАНЕЛЬ: КНОПКА → МЕНЮ → АНКЕТА (как в тикетах) ──────────────────────────
+def build_app_options() -> list[discord.SelectOption]:
+    """Пункты меню направлений (берутся из актуальных настроек/текстов)."""
+    return [
+        discord.SelectOption(
+            label=app_label(aid)[:100], value=aid, description=app_desc(aid)[:100],
+        )
+        for aid in APP_TYPE_IDS
+    ]
+
+
+class AppTypeSelectView(discord.ui.View):
+    """Эфемерное меню выбора направления (как выбор типа в тикетах)."""
+
+    def __init__(self, options: list[discord.SelectOption]):
+        super().__init__(timeout=120)
+        sel = discord.ui.Select(
+            placeholder=str(T.APP_SELECT_PH)[:100],
+            options=options,
+        )
+        sel.callback = self._on_select
+        self.add_item(sel)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        app_type = interaction.data["values"][0]
+        # Кулдаун проверяем ДО анкеты, чтобы игрок не заполнял 10 полей зря
+        remaining = await cooldown_left(interaction.user.id, app_type)
+        if remaining > 0:
+            await interaction.response.send_message(cooldown_msg(remaining), ephemeral=True)
+            return
+        await interaction.response.send_modal(
+            ApplicationModal(app_type, user_id=interaction.user.id))
+
+
+class ApplicationPanelView(discord.ui.View):
+    """Персистентная панель: кнопка → меню направлений → анкета."""
+
     def __init__(self):
         super().__init__(timeout=None)
-        opts = [
-            discord.SelectOption(
-                label=app_label(aid)[:100], value=aid, description=app_desc(aid)[:100],
-            )
-            for aid in APP_TYPE_IDS
-        ]
+        set_child_label(self, "open_app_panel_btn",
+                          _txt("APP_BTN_LABEL", "Подать заявку"), _txt("APP_BTN_EMOJI", "📋"))
+
+    @discord.ui.button(label="Подать заявку", style=discord.ButtonStyle.primary,
+                       emoji="📋", custom_id="open_app_panel_btn")
+    async def open_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            _txt("APP_TYPE_SELECT_PROMPT", "Выберите направление:"),
+            view=AppTypeSelectView(build_app_options()), ephemeral=True,
+        )
+
+
+class ApplicationView(discord.ui.View):
+    """⚠️ Старая панель со списком (для сообщений, созданных до обновления).
+
+    Новые панели — ApplicationPanelView (кнопка). Этот класс оставлен,
+    чтобы старые панели продолжали работать после рестарта бота;
+    при первом же обновлении панели она станет нового вида.
+    """
+
+    def __init__(self):
+        super().__init__(timeout=None)
         self.sel = discord.ui.Select(placeholder=str(T.APP_SELECT_PH)[:100],
-                                     options=opts, custom_id="app_type_select")
+                                     options=build_app_options(),
+                                     custom_id="app_type_select")
         self.sel.callback = self._cb
         self.add_item(self.sel)
 
     async def _cb(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(ApplicationModal(self.sel.values[0]))
+        app_type = self.sel.values[0]
+        remaining = await cooldown_left(interaction.user.id, app_type)
+        if remaining > 0:
+            await interaction.response.send_message(cooldown_msg(remaining), ephemeral=True)
+            return
+        await interaction.response.send_modal(
+            ApplicationModal(app_type, user_id=interaction.user.id))
 
 
 # ─── COG ─────────────────────────────────────────────────────────────────────
@@ -328,12 +487,13 @@ class ApplicationsCog(commands.Cog):
     @app_commands.command(name="setup-applications", description="📋 [АДМИН] Установить панель заявок")
     @app_commands.default_permissions(administrator=True)
     async def setup_apps(self, interaction: discord.Interaction):
-        message = await interaction.channel.send(embed=build_app_panel_embed(), view=ApplicationView())
+        message = await interaction.channel.send(embed=build_app_panel_embed(), view=ApplicationPanelView())
         await save_panel_message(interaction.guild.id, interaction.channel.id, message.id)
         await interaction.response.send_message(T.APP_PANEL_OK, ephemeral=True)
 
 
 async def setup(bot):
     await bot.add_cog(ApplicationsCog(bot))
-    bot.add_view(ApplicationView())
+    bot.add_view(ApplicationPanelView())
+    bot.add_view(ApplicationView())  # старые панели (список) — до их обновления
     bot.add_view(AdminApproveView())
